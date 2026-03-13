@@ -40,6 +40,20 @@ Build **Jobflow** — an AI-powered job application tracker with Kanban board, A
 - [x] Compare mode: side-by-side original vs optimised CV with diff highlighting
 - [x] Cover Letter tab: tone selector (4 options), company research pill, generated letter with copy/download
 
+### Interview Prep Generator (March 13, 2026)
+- [x] AI-powered interview prep per role (8-10 questions: technical + behavioural)
+- [x] Company research summary generated from JD
+- [x] "Why this role?" talking points
+- [x] Prep checklist with checkable items
+- [x] Expandable questions with per-question notes (auto-saved)
+- [x] Regenerate button for fresh prep
+- [x] Accessible from Right Panel "Prepare for Interview" button
+
+### Dashboard (March 13, 2026)
+- [x] Status count pills (Wishlist, Applied, Interview, In Progress, Offer, Rejected + Total)
+- [x] Applications overview table (Role, Company, Status, Match, Applied, Salary)
+- [x] Empty state for new users
+
 ## Prioritized Backlog
 ### P0
 - Phase 8: Polish — card hover animations, modal transitions, skeleton loading, responsive
