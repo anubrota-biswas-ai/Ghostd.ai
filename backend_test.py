@@ -7,7 +7,7 @@ from datetime import datetime
 class JobflowAPITester:
     def __init__(self):
         self.base_url = "https://job-tracker-ai-9.preview.emergentagent.com/api"
-        self.session_token = "test_session_1773439513006"  # From MongoDB creation
+        self.session_token = "test_session_1773440315832"  # From MongoDB creation
         self.headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.session_token}'
@@ -15,6 +15,7 @@ class JobflowAPITester:
         self.tests_run = 0
         self.tests_passed = 0
         self.created_job_id = None
+        self.interview_prep_id = None
 
     def log_test(self, name, success, status_code=None, response=None):
         self.tests_run += 1
@@ -191,6 +192,75 @@ class JobflowAPITester:
             self.log_test("POST /ai/cover-letter", False, None, str(e))
             return False
 
+    def test_generate_interview_prep(self):
+        """Test POST /api/jobs/{job_id}/interview-prep"""
+        if not self.created_job_id:
+            print("❌ POST /jobs/{id}/interview-prep - No job ID for interview prep")
+            return False
+        
+        try:
+            response = requests.post(
+                f"{self.base_url}/jobs/{self.created_job_id}/interview-prep", 
+                headers=self.headers, 
+                json={"jd_text": "Looking for a software engineer with React experience."}, 
+                timeout=20  # AI generation can take time
+            )
+            success = response.status_code == 200
+            if success:
+                prep = response.json()
+                self.interview_prep_id = prep.get('id')
+                success = self.interview_prep_id is not None and 'questions' in prep
+                print(f"   Generated prep ID: {self.interview_prep_id}")
+                print(f"   Questions count: {len(prep.get('questions', []))}")
+            self.log_test("POST /jobs/{id}/interview-prep", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("POST /jobs/{id}/interview-prep", False, None, str(e))
+            return False
+
+    def test_get_interview_prep(self):
+        """Test GET /api/jobs/{job_id}/interview-prep"""
+        if not self.created_job_id:
+            print("❌ GET /jobs/{id}/interview-prep - No job ID for interview prep")
+            return False
+        
+        try:
+            response = requests.get(f"{self.base_url}/jobs/{self.created_job_id}/interview-prep", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            if success:
+                prep = response.json()
+                success = prep is not None and 'questions' in prep
+                print(f"   Retrieved prep with {len(prep.get('questions', []))} questions")
+            self.log_test("GET /jobs/{id}/interview-prep", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /jobs/{id}/interview-prep", False, None, str(e))
+            return False
+
+    def test_update_interview_prep(self):
+        """Test PUT /api/interview-prep/{prep_id}"""
+        if not self.interview_prep_id:
+            print("❌ PUT /interview-prep/{id} - No prep ID to update")
+            return False
+        
+        update_data = {
+            "user_notes": {"q1": "Test note for question 1"},
+            "checked_items": [0, 1]
+        }
+        try:
+            response = requests.put(
+                f"{self.base_url}/interview-prep/{self.interview_prep_id}", 
+                headers=self.headers, 
+                json=update_data, 
+                timeout=10
+            )
+            success = response.status_code == 200
+            self.log_test("PUT /interview-prep/{id}", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("PUT /interview-prep/{id}", False, None, str(e))
+            return False
+
     def run_all_tests(self):
         """Run all API tests"""
         print("🚀 Starting Jobflow API Tests")
@@ -208,6 +278,14 @@ class JobflowAPITester:
         if self.test_create_job():
             self.test_update_job()
             self.test_jobs_get_with_data()
+            
+            # Interview prep tests (requires a job to exist)
+            print("\n📝 Testing Interview Prep endpoints...")
+            if self.test_generate_interview_prep():
+                self.test_get_interview_prep()
+                self.test_update_interview_prep()
+            
+            # Clean up
             self.test_delete_job()
 
         # AI endpoints

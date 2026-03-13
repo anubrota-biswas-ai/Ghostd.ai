@@ -90,6 +90,9 @@ class CVUpload(BaseModel):
     raw_text: str
     filename: str = "resume.txt"
 
+class InterviewPrepRequest(BaseModel):
+    jd_text: str = ""
+
 # ─── Auth Helper ───
 
 async def get_current_user(request: Request) -> dict:
@@ -308,6 +311,78 @@ async def upload_cv(cv: CVUpload, request: Request):
 async def get_cvs(request: Request):
     user = await get_current_user(request)
     return await db.cvs.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(100)
+
+# ─── Interview Prep ───
+
+@api_router.post("/jobs/{job_id}/interview-prep")
+async def generate_interview_prep(job_id: str, req: InterviewPrepRequest, request: Request):
+    user = await get_current_user(request)
+    job = await db.job_applications.find_one({"id": job_id, "user_id": user["user_id"]}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    jd = req.jd_text or job.get("jd_raw_text", "")
+    title = job.get("title", "the role")
+    company = job.get("company", "the company")
+
+    chat = get_llm()
+    prompt = f"""Based on this job, generate interview preparation materials. Return ONLY valid JSON:
+{{
+  "questions": [
+    {{"id": "q1", "type": "technical" or "behavioural", "question": "question text", "hints": "brief approach suggestion"}}
+  ],
+  "company_summary": "2-3 sentence company/role research summary",
+  "talking_points": ["point1", "point2", "point3"],
+  "prep_checklist": ["task1", "task2", "task3"]
+}}
+
+Generate exactly 8-10 questions (mix of technical and behavioural).
+Generate 3-5 talking points for "Why this role?".
+Generate 4-6 prep checklist items.
+
+Role: {title} at {company}
+Job Description:
+{jd if jd else 'No detailed JD available — generate general questions for a ' + title + ' role at ' + company}
+
+Return ONLY the JSON object."""
+
+    msg = UserMessage(text=prompt)
+    response = await chat.send_message(msg)
+    try:
+        parsed = parse_llm_json(response)
+    except Exception:
+        parsed = {"questions": [], "company_summary": "", "talking_points": [], "prep_checklist": []}
+
+    prep_id = f"prep_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "id": prep_id, "job_id": job_id, "user_id": user["user_id"],
+        **parsed, "user_notes": {}, "checked_items": [],
+        "created_at": now, "updated_at": now,
+    }
+
+    await db.interview_preps.delete_many({"job_id": job_id, "user_id": user["user_id"]})
+    await db.interview_preps.insert_one(doc)
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+@api_router.get("/jobs/{job_id}/interview-prep")
+async def get_interview_prep(job_id: str, request: Request):
+    user = await get_current_user(request)
+    prep = await db.interview_preps.find_one({"job_id": job_id, "user_id": user["user_id"]}, {"_id": 0})
+    return prep
+
+@api_router.put("/interview-prep/{prep_id}")
+async def update_interview_prep(prep_id: str, request: Request):
+    user = await get_current_user(request)
+    body = await request.json()
+    update_data = {}
+    if "user_notes" in body:
+        update_data["user_notes"] = body["user_notes"]
+    if "checked_items" in body:
+        update_data["checked_items"] = body["checked_items"]
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.interview_preps.update_one({"id": prep_id, "user_id": user["user_id"]}, {"$set": update_data})
+    return {"ok": True}
 
 # ─── AI Endpoints ───
 

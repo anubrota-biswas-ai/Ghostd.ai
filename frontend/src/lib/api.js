@@ -53,4 +53,10 @@ export const api = {
     request('POST', '/ai/analyze-cv', { cv_text: cvText, jd_text: jdText, job_id: jobId }),
   generateCoverLetter: (cvText, jdText, company, tone) =>
     request('POST', '/ai/cover-letter', { cv_text: cvText, jd_text: jdText, company, tone }),
+
+  // Interview Prep
+  generateInterviewPrep: (jobId, jdText) =>
+    request('POST', `/jobs/${jobId}/interview-prep`, { jd_text: jdText }),
+  getInterviewPrep: (jobId) => request('GET', `/jobs/${jobId}/interview-prep`),
+  updateInterviewPrep: (prepId, data) => request('PUT', `/interview-prep/${prepId}`, data),
 };
