@@ -71,6 +71,18 @@ Build **Jobflow** — an AI-powered job application tracker with Kanban board, A
 - [x] Applications overview table (Role, Company, Status, Match, Applied, Salary)
 - [x] Empty state for new users
 
+### CV File Upload + Sortable DnD + Email Integration (March 13, 2026)
+- [x] CV file upload: PDF/TXT upload with PyPDF2 text extraction on ATS Checker page
+- [x] Upload button + filename indicator in ATS input panel (alongside text paste)
+- [x] Backend POST /api/cv/upload-file with multipart form data
+- [x] Drag-and-drop reorder within columns: @dnd-kit/sortable with SortableContext per column
+- [x] Full multi-container sortable: reorder within same column + move between columns
+- [x] Email Integration: "Log Email" button in right panel
+- [x] Email Log Modal: paste recruiter email → AI analysis (sender, type, sentiment, dates, suggested status)
+- [x] Auto-creates activity items from email analysis
+- [x] Auto-updates contact last_contacted dates
+- [x] Suggested status changes with one-click Apply button
+
 ## Prioritized Backlog
 ### P0
 - Phase 8: Polish — card hover animations, modal transitions, skeleton loading, responsive
