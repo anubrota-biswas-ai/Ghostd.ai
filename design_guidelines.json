@@ -1,0 +1,112 @@
+{
+  "typography": {
+    "font_family": "Inter, sans-serif",
+    "import_url": "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap",
+    "weights": {
+      "display": 300,
+      "body": 300,
+      "label": 700,
+      "logo": 700
+    },
+    "scale": {
+      "h1": "text-4xl font-light tracking-tight",
+      "h2": "text-2xl font-light tracking-tight",
+      "h3": "text-xl font-light",
+      "body": "text-sm font-light leading-relaxed",
+      "label": "text-xs font-bold uppercase tracking-wider text-slate-500",
+      "score": "text-6xl font-light"
+    }
+  },
+  "colors": {
+    "background": {
+      "app": "linear-gradient(145deg, #E8EDF8 0%, #D4DCF4 100%)",
+      "score_card": "linear-gradient(135deg, #2B3FBF 0%, #1a2d9f 100%)"
+    },
+    "accent": {
+      "primary": "#2B3FBF",
+      "hover": "#1a2d9f"
+    },
+    "status": {
+      "wishlist": "#9CA3AF",
+      "applied": "#60A5FA",
+      "interview": "#FCD34D",
+      "in_progress": "#F97316",
+      "offer": "#34D399",
+      "rejected": "#FCA5A5"
+    },
+    "text": {
+      "primary": "#1e293b",
+      "secondary": "#64748b",
+      "inverse": "#ffffff"
+    }
+  },
+  "surfaces": {
+    "card": "bg-white/82 backdrop-blur-md border border-white/40 shadow-sm",
+    "sidebar": "bg-white/70 backdrop-blur-xl border-r border-white/20",
+    "topbar": "bg-white/50 backdrop-blur-lg border-b border-white/20 sticky top-0 z-50",
+    "panel": "bg-white/65 backdrop-blur-lg border-l border-white/30",
+    "glass_input": "bg-white/50 border-white/30 focus:bg-white/80 transition-all"
+  },
+  "layout": {
+    "sidebar_width": "210px",
+    "topbar_height": "56px",
+    "right_panel_width": "268px",
+    "container": "max-w-[1600px] mx-auto p-8",
+    "spacing": {
+      "section": "p-8",
+      "card": "p-5",
+      "gap": "gap-6"
+    }
+  },
+  "motion": {
+    "hover": "transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg",
+    "fade_in": "animate-in fade-in duration-500",
+    "slide_in": "animate-in slide-in-from-bottom-4 duration-500"
+  },
+  "components": {
+    "button": {
+      "primary": "bg-[#2B3FBF] text-white hover:bg-[#1a2d9f] rounded-full px-6 py-2 font-medium transition-all shadow-md hover:shadow-lg",
+      "glass": "bg-white/40 hover:bg-white/60 text-[#2B3FBF] border border-white/50 rounded-full px-6 py-2 transition-all"
+    },
+    "badge": {
+      "base": "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide",
+      "variants": {
+        "wishlist": "bg-gray-100 text-gray-600 border border-gray-200",
+        "applied": "bg-blue-50 text-blue-600 border border-blue-200",
+        "interview": "bg-yellow-50 text-yellow-600 border border-yellow-200",
+        "offer": "bg-emerald-50 text-emerald-600 border border-emerald-200",
+        "rejected": "bg-red-50 text-red-600 border border-red-200"
+      }
+    }
+  },
+  "assets": {
+    "icons": "lucide-react",
+    "image_urls": {
+      "user_avatar": "https://images.unsplash.com/photo-1675186914580-94356f7c012c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBoZWFkc2hvdCUyMHdvbWFuJTIwc21pbGluZyUyMG1pbmltYWxpc3RpY3xlbnwwfHx8fDE3NzM0MzcyNjR8MA&ixlib=rb-4.1.0&q=85",
+      "company_logos": [
+        "https://images.unsplash.com/photo-1739582656946-8e19004070c6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHw0fHxtaW5pbWFsJTIwYWJzdHJhY3QlMjBsb2dvJTIwd2hpdGUlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3MzQzNzI3Mnww&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1559051668-e1fa58f25786?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHwxfHxtaW5pbWFsJTIwYWJzdHJhY3QlMjBsb2dvJTIwd2hpdGUlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3MzQzNzI3Mnww&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1741806914412-340ca16e9175?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHwzfHxtaW5pbWFsJTIwYWJzdHJhY3QlMjBsb2dvJTIwd2hpdGUlMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3MzQzNzI3Mnww&ixlib=rb-4.1.0&q=85"
+      ]
+    }
+  },
+  "instructions_to_main_agent": [
+    "1. INSTALLATION: Run `npm install lucide-react` or `yarn add lucide-react` immediately.",
+    "2. FONTS: Add the Google Fonts import link to `public/index.html` <head>.",
+    "3. TAILWIND: Update `tailwind.config.js` to include the specific colors (royal blue #2B3FBF) and confirm the `content` path scans all component files.",
+    "4. GLOBAL CSS: In `index.css`, set `body` background to the Periwinkle Gradient: `linear-gradient(145deg, #E8EDF8 0%, #D4DCF4 100%)`. Set `min-height: 100vh`.",
+    "5. LAYOUT: Create a `Layout.js` shell. Sidebar (Fixed Left, 210px), Topbar (Fixed Top, 56px, z-50), Main Content (ml-[210px] mt-[56px] mr-[268px]), Right Panel (Fixed Right, 268px).",
+    "6. COMPONENTS: Build `JobCard` using the glassmorphism utility: `bg-white/82 backdrop-blur-md border border-white/40`. Use `font-light` (300) for the Job Title.",
+    "7. KANBAN: Use a simple drag-and-drop logic (or library if permitted) but focus on the VISUALS first: 6 columns, horizontal scroll if needed, clear status headers.",
+    "8. SCORE CARD: In the Right Panel, the Score Card MUST use the deep royal blue gradient `linear-gradient(135deg, #2B3FBF, #1a2d9f)` with white text.",
+    "9. ICONS: Use `lucide-react` icons. No emojis.",
+    "10. DATA-TESTID: Add `data-testid` to all interactive elements (buttons, cards, inputs)."
+  ],
+  "universal_guidelines": [
+    "Avoid generic 'SaaS Blue' except for the specific Royal Blue accent.",
+    "Use generous spacing (p-6, p-8) inside glass cards.",
+    "Ensure text contrast is high (slate-800) against the glass backgrounds.",
+    "Do not use dark mode.",
+    "Use 300 font weight for all large numbers and titles to maintain the 'Airy/E1' aesthetic."
+  ]
+}
