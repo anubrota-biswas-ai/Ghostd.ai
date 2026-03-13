@@ -103,6 +103,7 @@ export default function AddJobModal({ isOpen, onClose }) {
     >
       <div
         data-testid="add-job-modal"
+        onClick={(e) => e.stopPropagation()}
         style={{
           background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(16px)',
           borderRadius: 16, border: '1px solid rgba(255,255,255,0.95)',

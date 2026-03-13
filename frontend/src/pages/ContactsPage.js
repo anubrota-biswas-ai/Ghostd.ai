@@ -236,7 +236,7 @@ export default function ContactsPage() {
           onClick={(e) => e.target === e.currentTarget && setShowAdd(false)}
           style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(26,31,60,0.20)", backdropFilter: "blur(4px)" }}
         >
-          <div style={{
+          <div onClick={(e) => e.stopPropagation()} style={{
             background: "rgba(255,255,255,0.92)", backdropFilter: "blur(16px)", borderRadius: 16,
             border: "1px solid rgba(255,255,255,0.95)", boxShadow: "0 8px 40px rgba(43,63,191,0.15)",
             maxWidth: 440, width: "100%", padding: 24,

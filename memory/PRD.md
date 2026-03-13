@@ -49,7 +49,24 @@ Build **Jobflow** — an AI-powered job application tracker with Kanban board, A
 - [x] Regenerate button for fresh prep
 - [x] Accessible from Right Panel "Prepare for Interview" button
 
-### Dashboard (March 13, 2026)
+### Contacts CRM (March 13, 2026)
+- [x] Full CRM page: contacts grouped by job application
+- [x] Add Contact modal with job selector, name, role type, email, LinkedIn, notes
+- [x] Contact cards with avatar, role badge, email/LinkedIn links, last contacted, notes
+- [x] Follow-up nudge badges: "Follow up" (7+ days), "Send thank you" (interview 5+ days), "No contact in 2 weeks" (14+ days)
+- [x] Search contacts by name, company, or role type
+- [x] Delete contacts
+- [x] Backend: GET /api/contacts (enriched with job info), PUT /api/contacts/{id}
+
+### Phase 8 — Polish (March 13, 2026)
+- [x] Responsive sidebar: auto-collapses to 56px icon-only below 900px width
+- [x] Manual sidebar collapse/expand toggle button
+- [x] Right panel: becomes bottom sheet below 1200px width
+- [x] Compact topbar: button text hidden below 600px
+- [x] Slide-in/slide-up animations for panels
+- [x] Skeleton loading states (board, contacts)
+- [x] Empty states for every section (board, contacts, dashboard, ATS)
+- [x] Modal overlay click propagation fixed
 - [x] Status count pills (Wishlist, Applied, Interview, In Progress, Offer, Rejected + Total)
 - [x] Applications overview table (Role, Company, Status, Match, Applied, Salary)
 - [x] Empty state for new users
