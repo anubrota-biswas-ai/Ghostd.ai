@@ -1,0 +1,56 @@
+const API = process.env.REACT_APP_BACKEND_URL + '/api';
+
+async function request(method, path, body = null) {
+  const opts = {
+    method,
+    credentials: 'include',
+    headers: {},
+  };
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(`${API}${path}`, opts);
+  if (res.status === 401) {
+    if (!window.location.pathname.includes('/login')) {
+      window.location.href = '/login';
+    }
+    throw new Error('Unauthorized');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+    throw new Error(err.detail || 'Request failed');
+  }
+  return res.json();
+}
+
+export const api = {
+  // Auth
+  exchangeSession: (sessionId) => request('POST', '/auth/session', { session_id: sessionId }),
+  getMe: () => request('GET', '/auth/me'),
+  logout: () => request('POST', '/auth/logout'),
+
+  // Jobs
+  getJobs: () => request('GET', '/jobs'),
+  createJob: (data) => request('POST', '/jobs', data),
+  updateJob: (id, data) => request('PUT', `/jobs/${id}`, data),
+  deleteJob: (id) => request('DELETE', `/jobs/${id}`),
+
+  // Contacts
+  addContact: (jobId, data) => request('POST', `/jobs/${jobId}/contacts`, data),
+  deleteContact: (id) => request('DELETE', `/contacts/${id}`),
+
+  // Activity
+  addActivity: (jobId, data) => request('POST', `/jobs/${jobId}/activity`, data),
+
+  // CV
+  uploadCV: (data) => request('POST', '/cv/upload', data),
+  getCVs: () => request('GET', '/cv'),
+
+  // AI
+  parseJD: (jdText) => request('POST', '/ai/parse-jd', { jd_text: jdText }),
+  analyzeCV: (cvText, jdText, jobId) =>
+    request('POST', '/ai/analyze-cv', { cv_text: cvText, jd_text: jdText, job_id: jobId }),
+  generateCoverLetter: (cvText, jdText, company, tone) =>
+    request('POST', '/ai/cover-letter', { cv_text: cvText, jd_text: jdText, company, tone }),
+};
