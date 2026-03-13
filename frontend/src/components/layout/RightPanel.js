@@ -1,7 +1,8 @@
-import { X, GraduationCap } from "lucide-react";
+import { X, GraduationCap, Mail } from "lucide-react";
 import { useState } from "react";
 import useJobStore from "@/store/jobStore";
 import InterviewPrepModal from "@/components/board/InterviewPrepModal";
+import EmailLogModal from "@/components/board/EmailLogModal";
 
 function formatTimestamp(ts) {
   if (!ts) return "";
@@ -20,6 +21,7 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
   const jobs = useJobStore((state) => state.jobs);
   const clearSelection = useJobStore((state) => state.clearSelection);
   const [showPrep, setShowPrep] = useState(false);
+  const [showEmail, setShowEmail] = useState(false);
 
   const job = jobs.find((j) => j.id === selectedJobId);
   if (!job) return null;
@@ -208,6 +210,23 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
           <GraduationCap size={14} />
           Prepare for Interview
         </button>
+
+        <button
+          data-testid="log-email-btn"
+          onClick={() => setShowEmail(true)}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            padding: "8px 14px", borderRadius: 8, marginBottom: 14,
+            background: "rgba(43,63,191,0.06)", border: "1px solid rgba(43,63,191,0.12)",
+            color: "#2B3FBF", fontSize: 12, fontWeight: 600, cursor: "pointer",
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(43,63,191,0.10)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(43,63,191,0.06)")}
+        >
+          <Mail size={14} />
+          Log Email
+        </button>
         <div
           style={{
             fontSize: 10,
@@ -376,6 +395,7 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
         )}
       </div>
       <InterviewPrepModal isOpen={showPrep} onClose={() => setShowPrep(false)} job={job} />
+      <EmailLogModal isOpen={showEmail} onClose={() => setShowEmail(false)} job={job} />
     </div>
   );
 }

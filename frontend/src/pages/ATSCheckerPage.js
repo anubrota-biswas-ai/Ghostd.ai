@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { FileSearch, Upload, Check, X, Copy, Download, ArrowRight, RotateCcw } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { FileSearch, Upload, Check, X, Copy, Download, ArrowRight, RotateCcw, FileUp } from 'lucide-react';
 import { api } from '@/lib/api';
 
 const SCAN_MESSAGES = [
@@ -30,6 +30,25 @@ export default function ATSCheckerPage() {
   const [generating, setGenerating] = useState(false);
   const [company, setCompany] = useState('');
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [cvFilename, setCvFilename] = useState('');
+  const fileInputRef = useRef(null);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const data = await api.uploadCVFile(file);
+      setCvText(data.raw_text || '');
+      setCvFilename(data.filename || file.name);
+    } catch (err) {
+      setError(err.message || 'File upload failed');
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const startAnalysis = async () => {
     if (!cvText.trim() || !jdText.trim()) return;
@@ -118,6 +137,26 @@ export default function ATSCheckerPage() {
       <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(43,63,191,0.5)' }}>
         Your CV
       </div>
+
+      {/* File upload zone */}
+      <input type="file" ref={fileInputRef} accept=".pdf,.txt" onChange={handleFileUpload} style={{ display: 'none' }} data-testid="cv-file-input" />
+      <button
+        data-testid="cv-upload-btn"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+        style={{
+          width: '100%', padding: '10px', borderRadius: 10, cursor: 'pointer',
+          border: cvFilename ? '1px solid rgba(43,63,191,0.35)' : '1px dashed rgba(43,63,191,0.25)',
+          background: cvFilename ? 'rgba(43,63,191,0.05)' : 'rgba(255,255,255,0.40)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          fontSize: 11, fontWeight: 500, color: cvFilename ? '#2B3FBF' : '#8892b0',
+          transition: 'all 0.15s',
+        }}
+      >
+        <FileUp size={14} />
+        {uploading ? 'Uploading...' : cvFilename ? cvFilename : 'Upload PDF or TXT'}
+      </button>
+
       <textarea
         data-testid="cv-textarea"
         value={cvText}

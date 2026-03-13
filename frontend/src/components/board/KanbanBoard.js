@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  useSensor,
-  useSensors,
+  DndContext, DragOverlay, closestCorners,
+  PointerSensor, useSensor, useSensors, useDroppable,
 } from "@dnd-kit/core";
+import {
+  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import useJobStore from "@/store/jobStore";
-import KanbanColumn from "./KanbanColumn";
 import JobCard from "./JobCard";
 
 const COLUMNS = [
@@ -19,44 +19,149 @@ const COLUMNS = [
   { id: "rejected", label: "Rejected", color: "#FCA5A5" },
 ];
 
-export default function KanbanBoard() {
-  const [activeId, setActiveId] = useState(null);
-  const jobs = useJobStore((state) => state.jobs);
-  const moveJob = useJobStore((state) => state.moveJob);
+function SortableJobCard({ id }) {
+  const job = useJobStore((s) => s.jobs.find((j) => j.id === id));
+  const selectedJobId = useJobStore((s) => s.selectedJobId);
+  const selectJob = useJobStore((s) => s.selectJob);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
-    })
-  );
-
-  const activeJob = activeId ? jobs.find((j) => j.id === activeId) : null;
-
-  const handleDragStart = (event) => {
-    setActiveId(event.active.id);
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.35 : 1,
+    cursor: isDragging ? "grabbing" : "grab",
+    zIndex: isDragging ? 100 : "auto",
   };
 
-  const handleDragOver = () => {};
+  if (!job) return null;
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} onClick={() => selectJob(id)}>
+      <JobCard job={job} isSelected={selectedJobId === id} />
+    </div>
+  );
+}
+
+function DroppableColumn({ column, jobIds }) {
+  const { setNodeRef, isOver } = useDroppable({ id: column.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-testid={`column-${column.id}`}
+      style={{
+        width: 215, flexShrink: 0, display: "flex", flexDirection: "column",
+        transition: "background 0.2s", borderRadius: 12,
+        background: isOver ? "rgba(43,63,191,0.04)" : "transparent",
+        minHeight: 0, height: "100%",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 4px 12px", flexShrink: 0 }}>
+        <div style={{ width: 7, height: 7, borderRadius: "50%", background: column.color, flexShrink: 0 }} />
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(26,31,60,0.4)" }}>
+          {column.label}
+        </span>
+        <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(26,31,60,0.25)" }}>
+          {jobIds.length}
+        </span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, overflowY: "auto", paddingRight: 2, paddingBottom: 20, minHeight: 80 }}>
+        <SortableContext items={jobIds} strategy={verticalListSortingStrategy}>
+          {jobIds.map((id) => (
+            <SortableJobCard key={id} id={id} />
+          ))}
+        </SortableContext>
+      </div>
+    </div>
+  );
+}
+
+export default function KanbanBoard() {
+  const jobs = useJobStore((s) => s.jobs);
+  const moveJob = useJobStore((s) => s.moveJob);
+  const [activeId, setActiveId] = useState(null);
+  const [columns, setColumns] = useState({});
+
+  useEffect(() => {
+    const cols = {};
+    COLUMNS.forEach((c) => { cols[c.id] = []; });
+    jobs.forEach((j) => { if (cols[j.status]) cols[j.status].push(j.id); });
+    setColumns(cols);
+  }, [jobs]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const findContainer = useCallback(
+    (id) => {
+      if (columns[id]) return id;
+      return Object.keys(columns).find((key) => columns[key].includes(id));
+    },
+    [columns]
+  );
+
+  const handleDragStart = (event) => setActiveId(event.active.id);
+
+  const handleDragOver = (event) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeContainer = findContainer(active.id);
+    let overContainer = findContainer(over.id);
+    if (!overContainer && COLUMNS.some((c) => c.id === over.id)) overContainer = over.id;
+    if (!activeContainer || !overContainer || activeContainer === overContainer) return;
+
+    setColumns((prev) => {
+      const activeItems = [...(prev[activeContainer] || [])];
+      const overItems = [...(prev[overContainer] || [])];
+      const activeIndex = activeItems.indexOf(active.id);
+      if (activeIndex === -1) return prev;
+      activeItems.splice(activeIndex, 1);
+
+      const overIndex = overItems.indexOf(over.id);
+      overItems.splice(overIndex >= 0 ? overIndex : overItems.length, 0, active.id);
+
+      return { ...prev, [activeContainer]: activeItems, [overContainer]: overItems };
+    });
+  };
 
   const handleDragEnd = (event) => {
     const { active, over } = event;
     setActiveId(null);
+    if (!over) return;
 
-    if (over) {
-      const overId = over.id;
-      const isColumn = COLUMNS.some((c) => c.id === overId);
-      if (isColumn) {
-        const currentJob = jobs.find((j) => j.id === active.id);
-        if (currentJob && currentJob.status !== overId) {
-          moveJob(active.id, overId);
-        }
+    const activeContainer = findContainer(active.id);
+    let overContainer = findContainer(over.id);
+    if (!overContainer && COLUMNS.some((c) => c.id === over.id)) overContainer = over.id;
+    if (!activeContainer || !overContainer) return;
+
+    if (activeContainer === overContainer) {
+      const items = columns[activeContainer];
+      const oldIndex = items.indexOf(active.id);
+      const newIndex = items.indexOf(over.id);
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        setColumns((prev) => ({
+          ...prev,
+          [activeContainer]: arrayMove(prev[activeContainer], oldIndex, newIndex),
+        }));
       }
     }
+
+    const job = jobs.find((j) => j.id === active.id);
+    const finalContainer = findContainer(active.id);
+    if (job && finalContainer && job.status !== finalContainer) {
+      moveJob(active.id, finalContainer);
+    }
   };
+
+  const activeJob = activeId ? jobs.find((j) => j.id === activeId) : null;
 
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={closestCorners}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -64,24 +169,15 @@ export default function KanbanBoard() {
       <div
         data-testid="kanban-board"
         style={{
-          display: "flex",
-          gap: 14,
-          padding: "20px 24px",
-          overflowX: "auto",
-          overflowY: "hidden",
-          height: "100%",
-          alignItems: "flex-start",
+          display: "flex", gap: 14, padding: "20px 24px",
+          overflowX: "auto", overflowY: "hidden",
+          height: "100%", alignItems: "flex-start",
         }}
       >
         {COLUMNS.map((col) => (
-          <KanbanColumn
-            key={col.id}
-            column={col}
-            jobs={jobs.filter((j) => j.status === col.id)}
-          />
+          <DroppableColumn key={col.id} column={col} jobIds={columns[col.id] || []} />
         ))}
       </div>
-
       <DragOverlay dropAnimation={null}>
         {activeJob ? (
           <div style={{ opacity: 0.9, transform: "rotate(2deg)", width: 215 }}>

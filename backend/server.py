@@ -1,14 +1,15 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, File, UploadFile
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os, logging, uuid, json
+import os, logging, uuid, json, io
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 import httpx
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+from PyPDF2 import PdfReader
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -336,6 +337,32 @@ async def get_cvs(request: Request):
     user = await get_current_user(request)
     return await db.cvs.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(100)
 
+@api_router.post("/cv/upload-file")
+async def upload_cv_file(file: UploadFile = File(...), request: Request = None):
+    user = await get_current_user(request)
+    content = await file.read()
+
+    if file.filename.lower().endswith('.pdf'):
+        try:
+            reader = PdfReader(io.BytesIO(content))
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Could not read PDF: {str(e)}")
+    elif file.filename.lower().endswith('.txt'):
+        text = content.decode('utf-8', errors='ignore')
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type. Upload PDF or TXT.")
+
+    cv_id = f"cv_{uuid.uuid4().hex[:12]}"
+    await db.cvs.update_many({"user_id": user["user_id"]}, {"$set": {"is_primary": False}})
+    doc = {
+        "id": cv_id, "user_id": user["user_id"],
+        "filename": file.filename, "raw_text": text.strip(),
+        "is_primary": True, "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.cvs.insert_one(doc)
+    return {k: v for k, v in doc.items() if k != "_id"}
+
 # ─── Interview Prep ───
 
 @api_router.post("/jobs/{job_id}/interview-prep")
@@ -542,6 +569,52 @@ Return ONLY the cover letter text."""
     msg = UserMessage(text=prompt)
     response = await chat.send_message(msg)
     return {"letter": response.strip(), "company": req.company, "tone": req.tone}
+
+class EmailParseRequest(BaseModel):
+    email_text: str
+    job_id: Optional[str] = None
+
+@api_router.post("/ai/parse-email")
+async def parse_email(req: EmailParseRequest, request: Request):
+    user = await get_current_user(request)
+    chat = get_llm()
+    prompt = f"""Analyze this email from a job application context. Return ONLY valid JSON:
+{{
+  "sender_name": "name of sender",
+  "sender_email": "email address or null",
+  "sender_role": "Recruiter/Hiring Manager/Interviewer/Other",
+  "email_type": "interview_invitation/rejection/offer/follow_up/thank_you/info_request/general",
+  "summary": "1-2 sentence summary",
+  "key_dates": ["any dates or deadlines mentioned"],
+  "suggested_status": "wishlist/applied/interview/in_progress/offer/rejected" or null,
+  "suggested_activity": "activity message to log",
+  "sentiment": "positive/neutral/negative"
+}}
+
+Email:
+{req.email_text}
+
+Return ONLY the JSON object."""
+
+    msg = UserMessage(text=prompt)
+    response = await chat.send_message(msg)
+    try:
+        parsed = parse_llm_json(response)
+        if req.job_id and parsed.get("suggested_activity"):
+            await db.activity_items.insert_one({
+                "id": f"act_{uuid.uuid4().hex[:12]}",
+                "application_id": req.job_id, "user_id": user["user_id"],
+                "message": f"Email: {parsed['suggested_activity']}",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+        if req.job_id and parsed.get("sender_email"):
+            await db.contacts.update_one(
+                {"application_id": req.job_id, "user_id": user["user_id"], "email": parsed["sender_email"]},
+                {"$set": {"last_contacted": datetime.now(timezone.utc).isoformat()}}
+            )
+        return parsed
+    except Exception:
+        return {"raw_response": response, "error": "Could not parse email"}
 
 # ─── Root ───
 

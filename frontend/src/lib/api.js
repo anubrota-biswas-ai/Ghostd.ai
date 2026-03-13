@@ -47,6 +47,13 @@ export const api = {
 
   // CV
   uploadCV: (data) => request('POST', '/cv/upload', data),
+  uploadCVFile: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API}/cv/upload-file`, { method: 'POST', credentials: 'include', body: formData });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Upload failed'); }
+    return res.json();
+  },
   getCVs: () => request('GET', '/cv'),
 
   // AI
@@ -55,6 +62,8 @@ export const api = {
     request('POST', '/ai/analyze-cv', { cv_text: cvText, jd_text: jdText, job_id: jobId }),
   generateCoverLetter: (cvText, jdText, company, tone) =>
     request('POST', '/ai/cover-letter', { cv_text: cvText, jd_text: jdText, company, tone }),
+  parseEmail: (emailText, jobId) =>
+    request('POST', '/ai/parse-email', { email_text: emailText, job_id: jobId }),
 
   // Interview Prep
   generateInterviewPrep: (jobId, jdText) =>

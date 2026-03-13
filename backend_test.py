@@ -7,7 +7,7 @@ from datetime import datetime
 class JobflowAPITester:
     def __init__(self):
         self.base_url = "https://job-tracker-ai-9.preview.emergentagent.com/api"
-        self.session_token = "test_session_1773441396406"  # From MongoDB creation
+        self.session_token = "test_session_1773442632948"  # From MongoDB creation
         self.headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.session_token}'
@@ -357,6 +357,126 @@ class JobflowAPITester:
             self.log_test("PUT /interview-prep/{id}", False, None, str(e))
             return False
 
+    def test_cv_file_upload(self):
+        """Test POST /api/cv/upload-file endpoint for CV file uploads"""
+        import tempfile
+        import os
+        
+        # Test TXT file upload
+        txt_content = """John Doe
+Senior Software Engineer
+Experience: 5+ years in Python, JavaScript, React
+Education: BS Computer Science
+Skills: Python, React, Node.js, MongoDB, AWS
+Phone: (555) 123-4567
+Email: john.doe@email.com"""
+        
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as temp_txt:
+                temp_txt.write(txt_content)
+                temp_txt_path = temp_txt.name
+            
+            # Create headers without Content-Type for file upload
+            upload_headers = {'Authorization': f'Bearer {self.session_token}'}
+            
+            with open(temp_txt_path, 'rb') as f:
+                files = {'file': ('test_cv.txt', f, 'text/plain')}
+                response = requests.post(
+                    f"{self.base_url}/cv/upload-file", 
+                    headers=upload_headers, 
+                    files=files, 
+                    timeout=30
+                )
+            
+            success = response.status_code == 200
+            self.log_test("POST /cv/upload-file (TXT)", success, response.status_code, response.text if not success else None)
+            
+            if success:
+                data = response.json()
+                if 'raw_text' in data:
+                    print(f"   ✅ Text extracted: {len(data['raw_text'])} characters")
+                    print(f"   ✅ Preview: {data['raw_text'][:100]}...")
+                else:
+                    print(f"   ❌ No raw_text in response")
+                    success = False
+            
+            # Cleanup
+            os.unlink(temp_txt_path)
+            return success
+            
+        except Exception as e:
+            self.log_test("POST /cv/upload-file (TXT)", False, None, str(e))
+            return False
+
+    def test_email_parsing(self):
+        """Test POST /api/ai/parse-email endpoint for email analysis"""
+        test_email = """From: sarah.johnson@techcorp.com
+Subject: Interview Invitation - Software Engineer Position
+
+Hi John,
+
+We were impressed with your application for the Software Engineer position. 
+We'd like to invite you for a technical interview on Friday, January 15th at 2:00 PM.
+
+The interview will be conducted via Zoom and will last approximately 1 hour.
+Please confirm your availability.
+
+Looking forward to speaking with you!
+
+Best regards,
+Sarah Johnson
+Senior Technical Recruiter
+TechCorp Inc.
+sarah.johnson@techcorp.com
+Phone: (555) 987-6543"""
+
+        # Test without job_id first
+        try:
+            response = requests.post(
+                f"{self.base_url}/ai/parse-email",
+                headers=self.headers,
+                json={"email_text": test_email},
+                timeout=30  # AI calls can take longer
+            )
+            success = response.status_code == 200
+            self.log_test("POST /ai/parse-email (no job)", success, response.status_code, response.text if not success else None)
+            
+            if success:
+                data = response.json()
+                if 'error' in data:
+                    print(f"   ❌ AI parsing error: {data['error']}")
+                    return False
+                
+                print(f"   ✅ Email type: {data.get('email_type', 'unknown')}")
+                print(f"   ✅ Sender: {data.get('sender_name', 'unknown')}")
+                print(f"   ✅ Sentiment: {data.get('sentiment', 'unknown')}")
+                print(f"   ✅ Suggested status: {data.get('suggested_status', 'none')}")
+                
+                # Test with job_id if we have a created job
+                if self.created_job_id:
+                    response2 = requests.post(
+                        f"{self.base_url}/ai/parse-email",
+                        headers=self.headers,
+                        json={"email_text": test_email, "job_id": self.created_job_id},
+                        timeout=30
+                    )
+                    success2 = response2.status_code == 200
+                    self.log_test("POST /ai/parse-email (with job)", success2, response2.status_code, response2.text if not success2 else None)
+                    
+                    if success2:
+                        data2 = response2.json()
+                        if data2.get('suggested_activity'):
+                            print(f"   ✅ Activity created: {data2['suggested_activity']}")
+                    
+                    return success and success2
+                
+                return success
+            return False
+            
+        except Exception as e:
+            self.log_test("POST /ai/parse-email", False, None, str(e))
+            return False
+
     def run_all_tests(self):
         """Run all API tests"""
         print("🚀 Starting Jobflow API Tests")
@@ -396,6 +516,14 @@ class JobflowAPITester:
         self.test_ai_parse_jd()
         self.test_ai_analyze_cv()
         self.test_ai_cover_letter()
+        
+        # NEW FEATURE TESTS
+        print("\n🆕 Testing NEW FEATURES...")
+        print("\n📄 Testing CV File Upload...")
+        self.test_cv_file_upload()
+        
+        print("\n📧 Testing Email Parsing...")
+        self.test_email_parsing()
 
         # Summary
         print("-" * 50)
