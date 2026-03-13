@@ -107,6 +107,11 @@ body {
   50% { opacity: 0.7; }
 }
 
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
 .jf-spinner {
   width: 32px;
   height: 32px;

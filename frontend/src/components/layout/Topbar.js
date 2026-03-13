@@ -8,7 +8,7 @@ const pageTitles = {
   "/contacts": "Contacts",
 };
 
-export default function Topbar({ onAddClick }) {
+export default function Topbar({ onAddClick, compact }) {
   const location = useLocation();
   const title = pageTitles[location.pathname] || "Jobflow";
 
@@ -49,7 +49,7 @@ export default function Topbar({ onAddClick }) {
           onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
         >
           <Plus size={14} />
-          Add Application
+          {!compact && "Add Application"}
         </button>
       </div>
     </div>

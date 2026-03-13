@@ -273,6 +273,30 @@ async def add_contact(job_id: str, contact: ContactCreate, request: Request):
     await db.contacts.insert_one(doc)
     return {k: v for k, v in doc.items() if k != "_id"}
 
+@api_router.get("/contacts")
+async def list_all_contacts(request: Request):
+    user = await get_current_user(request)
+    contacts = await db.contacts.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(1000)
+    job_cache = {}
+    for contact in contacts:
+        app_id = contact.get("application_id")
+        if app_id and app_id not in job_cache:
+            job = await db.job_applications.find_one({"id": app_id}, {"_id": 0})
+            job_cache[app_id] = job
+        job = job_cache.get(app_id)
+        if job:
+            contact["job_title"] = job.get("title", "")
+            contact["job_company"] = job.get("company", "")
+            contact["job_status"] = job.get("status", "")
+    return contacts
+
+@api_router.put("/contacts/{contact_id}")
+async def update_contact(contact_id: str, contact: ContactCreate, request: Request):
+    user = await get_current_user(request)
+    update_data = contact.model_dump()
+    await db.contacts.update_one({"id": contact_id, "user_id": user["user_id"]}, {"$set": update_data})
+    return {"ok": True}
+
 @api_router.delete("/contacts/{contact_id}")
 async def delete_contact(contact_id: str, request: Request):
     user = await get_current_user(request)

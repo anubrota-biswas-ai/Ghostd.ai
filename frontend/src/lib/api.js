@@ -38,6 +38,8 @@ export const api = {
 
   // Contacts
   addContact: (jobId, data) => request('POST', `/jobs/${jobId}/contacts`, data),
+  getAllContacts: () => request('GET', '/contacts'),
+  updateContact: (id, data) => request('PUT', `/contacts/${id}`, data),
   deleteContact: (id) => request('DELETE', `/contacts/${id}`),
 
   // Activity

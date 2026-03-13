@@ -15,7 +15,7 @@ function formatTimestamp(ts) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export default function RightPanel() {
+export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
   const selectedJobId = useJobStore((state) => state.selectedJobId);
   const jobs = useJobStore((state) => state.jobs);
   const clearSelection = useJobStore((state) => state.clearSelection);
@@ -25,24 +25,29 @@ export default function RightPanel() {
   if (!job) return null;
 
   const progress = job.progress || { skills: 0, experience: 0, language: 0 };
-  const overallScore = job.matchScore || 0;
+  const overallScore = job.matchScore || job.match_score || 0;
+
+  const isSheet = mode === "sheet";
+  const containerStyle = isSheet
+    ? {
+        position: "fixed", bottom: 0, left: sidebarWidth, right: 0,
+        maxHeight: "50vh", zIndex: 30,
+        background: "rgba(255,255,255,0.85)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+        borderTop: "1px solid rgba(255,255,255,0.90)",
+        boxShadow: "0 -4px 24px rgba(43,63,191,0.10)",
+        overflowY: "auto", animation: "slideUp 0.25s ease-out",
+        display: "flex", flexDirection: "row", flexWrap: "wrap",
+      }
+    : {
+        width: 268, flexShrink: 0,
+        background: "rgba(255,255,255,0.65)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+        borderLeft: "1px solid rgba(255,255,255,0.90)",
+        overflowY: "auto", display: "flex", flexDirection: "column",
+        animation: "slideInRight 0.25s ease-out",
+      };
 
   return (
-    <div
-      data-testid="right-panel"
-      className="jf-panel-enter"
-      style={{
-        width: 268,
-        flexShrink: 0,
-        background: "rgba(255,255,255,0.65)",
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
-        borderLeft: "1px solid rgba(255,255,255,0.90)",
-        overflowY: "auto",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div data-testid="right-panel" style={containerStyle}>
       {/* Header */}
       <div
         style={{

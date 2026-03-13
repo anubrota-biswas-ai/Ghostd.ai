@@ -7,7 +7,7 @@ from datetime import datetime
 class JobflowAPITester:
     def __init__(self):
         self.base_url = "https://job-tracker-ai-9.preview.emergentagent.com/api"
-        self.session_token = "test_session_1773440315832"  # From MongoDB creation
+        self.session_token = "test_session_1773441396406"  # From MongoDB creation
         self.headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.session_token}'
@@ -16,6 +16,7 @@ class JobflowAPITester:
         self.tests_passed = 0
         self.created_job_id = None
         self.interview_prep_id = None
+        self.created_contact_id = None
 
     def log_test(self, name, success, status_code=None, response=None):
         self.tests_run += 1
@@ -237,6 +238,101 @@ class JobflowAPITester:
             self.log_test("GET /jobs/{id}/interview-prep", False, None, str(e))
             return False
 
+    def test_add_contact(self):
+        """Test POST /api/jobs/{job_id}/contacts"""
+        if not self.created_job_id:
+            print("❌ POST /jobs/{id}/contacts - No job ID for contact")
+            return False
+        
+        contact_data = {
+            "name": "Sarah Chen",
+            "role_type": "Recruiter",
+            "email": "sarah@techcorp.com",
+            "linkedin_url": "https://linkedin.com/in/sarahchen",
+            "notes": "Great conversation about the role"
+        }
+        try:
+            response = requests.post(
+                f"{self.base_url}/jobs/{self.created_job_id}/contacts", 
+                headers=self.headers, 
+                json=contact_data, 
+                timeout=10
+            )
+            success = response.status_code == 200
+            if success:
+                contact = response.json()
+                self.created_contact_id = contact.get('id')
+                success = self.created_contact_id is not None
+                print(f"   Created contact ID: {self.created_contact_id}")
+            self.log_test("POST /jobs/{id}/contacts", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("POST /jobs/{id}/contacts", False, None, str(e))
+            return False
+
+    def test_get_all_contacts(self):
+        """Test GET /api/contacts returns contacts with job enrichment"""
+        try:
+            response = requests.get(f"{self.base_url}/contacts", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            if success:
+                contacts = response.json()
+                success = isinstance(contacts, list)
+                if len(contacts) > 0:
+                    contact = contacts[0]
+                    # Check if contact has enriched job data
+                    has_job_data = 'job_title' in contact and 'job_company' in contact and 'job_status' in contact
+                    print(f"   Contacts count: {len(contacts)}, Has job enrichment: {has_job_data}")
+                else:
+                    print(f"   Contacts count: {len(contacts)}")
+            self.log_test("GET /contacts", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /contacts", False, None, str(e))
+            return False
+
+    def test_update_contact(self):
+        """Test PUT /api/contacts/{contact_id}"""
+        if not self.created_contact_id:
+            print("❌ PUT /contacts/{id} - No contact ID to update")
+            return False
+        
+        update_data = {
+            "name": "Sarah Chen",
+            "role_type": "Hiring Manager",  # Changed role
+            "email": "sarah@techcorp.com",
+            "linkedin_url": "https://linkedin.com/in/sarahchen",
+            "notes": "Updated after follow-up call"
+        }
+        try:
+            response = requests.put(
+                f"{self.base_url}/contacts/{self.created_contact_id}", 
+                headers=self.headers, 
+                json=update_data, 
+                timeout=10
+            )
+            success = response.status_code == 200
+            self.log_test("PUT /contacts/{id}", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("PUT /contacts/{id}", False, None, str(e))
+            return False
+
+    def test_delete_contact(self):
+        """Test DELETE /api/contacts/{contact_id}"""
+        if not self.created_contact_id:
+            print("❌ DELETE /contacts/{id} - No contact ID to delete")
+            return False
+        
+        try:
+            response = requests.delete(f"{self.base_url}/contacts/{self.created_contact_id}", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            self.log_test("DELETE /contacts/{id}", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("DELETE /contacts/{id}", False, None, str(e))
+            return False
+
     def test_update_interview_prep(self):
         """Test PUT /api/interview-prep/{prep_id}"""
         if not self.interview_prep_id:
@@ -278,6 +374,13 @@ class JobflowAPITester:
         if self.test_create_job():
             self.test_update_job()
             self.test_jobs_get_with_data()
+            
+            # Contacts CRUD tests (requires a job to exist)
+            print("\n👥 Testing Contacts endpoints...")
+            if self.test_add_contact():
+                self.test_get_all_contacts()
+                self.test_update_contact()
+                self.test_delete_contact()
             
             # Interview prep tests (requires a job to exist)
             print("\n📝 Testing Interview Prep endpoints...")
