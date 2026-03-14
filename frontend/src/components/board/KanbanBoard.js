@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   DndContext, DragOverlay, closestCorners,
   PointerSensor, useSensor, useSensors, useDroppable,
@@ -81,14 +81,16 @@ export default function KanbanBoard() {
   const jobs = useJobStore((s) => s.jobs);
   const moveJob = useJobStore((s) => s.moveJob);
   const [activeId, setActiveId] = useState(null);
-  const [columns, setColumns] = useState({});
+  const [dragColumns, setDragColumns] = useState(null);
 
-  useEffect(() => {
+  const baseColumns = useMemo(() => {
     const cols = {};
     COLUMNS.forEach((c) => { cols[c.id] = []; });
     jobs.forEach((j) => { if (cols[j.status]) cols[j.status].push(j.id); });
-    setColumns(cols);
+    return cols;
   }, [jobs]);
+
+  const columns = dragColumns || baseColumns;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -102,7 +104,10 @@ export default function KanbanBoard() {
     [columns]
   );
 
-  const handleDragStart = (event) => setActiveId(event.active.id);
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id);
+    setDragColumns({ ...baseColumns });
+  };
 
   const handleDragOver = (event) => {
     const { active, over } = event;
@@ -113,7 +118,7 @@ export default function KanbanBoard() {
     if (!overContainer && COLUMNS.some((c) => c.id === over.id)) overContainer = over.id;
     if (!activeContainer || !overContainer || activeContainer === overContainer) return;
 
-    setColumns((prev) => {
+    setDragColumns((prev) => {
       const activeItems = [...(prev[activeContainer] || [])];
       const overItems = [...(prev[overContainer] || [])];
       const activeIndex = activeItems.indexOf(active.id);
@@ -130,6 +135,7 @@ export default function KanbanBoard() {
   const handleDragEnd = (event) => {
     const { active, over } = event;
     setActiveId(null);
+    setDragColumns(null);
     if (!over) return;
 
     const activeContainer = findContainer(active.id);
@@ -142,7 +148,7 @@ export default function KanbanBoard() {
       const oldIndex = items.indexOf(active.id);
       const newIndex = items.indexOf(over.id);
       if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-        setColumns((prev) => ({
+        setDragColumns((prev) => ({
           ...prev,
           [activeContainer]: arrayMove(prev[activeContainer], oldIndex, newIndex),
         }));

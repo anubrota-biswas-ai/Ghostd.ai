@@ -83,6 +83,16 @@ Build **Jobflow** — an AI-powered job application tracker with Kanban board, A
 - [x] Auto-updates contact last_contacted dates
 - [x] Suggested status changes with one-click Apply button
 
+### Gmail API Integration (March 14, 2026)
+- [x] Google OAuth flow: login → consent → callback → token storage with auto-refresh
+- [x] Gmail connection indicator in sidebar ("Connect Gmail" / green status + disconnect)
+- [x] Email listing: GET /api/gmail/emails with contact-matching per job
+- [x] Email sending: POST /api/gmail/send via Gmail API
+- [x] Auto-scan: POST /api/gmail/scan — scans inbox for emails from known contacts, auto-creates activity items, updates last_contacted
+- [x] Compose Email modal with To/Subject/Body fields
+- [x] Gmail emails section in right panel (sync + compose buttons, email previews)
+- [x] Proper error handling when Gmail not connected (400 responses)
+
 ## Prioritized Backlog
 ### P0
 - Phase 8: Polish — card hover animations, modal transitions, skeleton loading, responsive
