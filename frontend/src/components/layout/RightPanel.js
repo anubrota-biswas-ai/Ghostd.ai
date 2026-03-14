@@ -30,17 +30,21 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
   const [gmailConnected, setGmailConnected] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
+  const job = jobs.find((j) => j.id === selectedJobId);
+
   useEffect(() => {
     api.gmailStatus().then((s) => {
       setGmailConnected(s.connected);
-      if (s.connected && job) loadEmails();
+      if (s.connected && selectedJobId) {
+        api.gmailEmails(selectedJobId).then((d) => setGmailEmails(d.messages || [])).catch(() => {});
+      }
     }).catch(() => {});
-    // eslint-disable-next-line
-  }, [job?.id]);
+  }, [selectedJobId]);
 
   const loadEmails = async () => {
+    if (!selectedJobId) return;
     try {
-      const data = await api.gmailEmails(job?.id);
+      const data = await api.gmailEmails(selectedJobId);
       setGmailEmails(data.messages || []);
     } catch {}
   };
@@ -54,7 +58,6 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
     setSyncing(false);
   };
 
-  const job = jobs.find((j) => j.id === selectedJobId);
   if (!job) return null;
 
   const progress = job.progress || { skills: 0, experience: 0, language: 0 };
