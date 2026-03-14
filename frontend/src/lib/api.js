@@ -70,4 +70,12 @@ export const api = {
     request('POST', `/jobs/${jobId}/interview-prep`, { jd_text: jdText }),
   getInterviewPrep: (jobId) => request('GET', `/jobs/${jobId}/interview-prep`),
   updateInterviewPrep: (prepId, data) => request('PUT', `/interview-prep/${prepId}`, data),
+
+  // Gmail
+  gmailLogin: () => request('GET', '/oauth/gmail/login'),
+  gmailStatus: () => request('GET', '/gmail/status'),
+  gmailDisconnect: () => request('POST', '/gmail/disconnect'),
+  gmailEmails: (jobId) => request('GET', `/gmail/emails${jobId ? `?job_id=${jobId}` : ''}`),
+  gmailSend: (to, subject, body) => request('POST', '/gmail/send', { to, subject, body }),
+  gmailScan: () => request('POST', '/gmail/scan'),
 };

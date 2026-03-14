@@ -1,6 +1,8 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FileSearch, BarChart3, Users, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { LayoutDashboard, FileSearch, BarChart3, Users, LogOut, PanelLeftClose, PanelLeftOpen, Mail, Unplug } from "lucide-react";
+import { useState, useEffect } from "react";
 import useAuthStore from "@/store/authStore";
+import { api } from "@/lib/api";
 
 const navItems = [
   { path: "/", label: "Board", icon: LayoutDashboard },
@@ -14,6 +16,23 @@ export default function Sidebar({ collapsed, onToggle, autoCollapsed }) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const [gmailStatus, setGmailStatus] = useState({ connected: false, email: '' });
+
+  useEffect(() => {
+    api.gmailStatus().then(setGmailStatus).catch(() => {});
+  }, []);
+
+  const connectGmail = async () => {
+    try {
+      const { auth_url } = await api.gmailLogin();
+      window.location.href = auth_url;
+    } catch (e) { console.error('Gmail login error:', e); }
+  };
+
+  const disconnectGmail = async () => {
+    await api.gmailDisconnect();
+    setGmailStatus({ connected: false, email: '' });
+  };
 
   const initials = user?.name
     ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase()
@@ -96,6 +115,40 @@ export default function Sidebar({ collapsed, onToggle, autoCollapsed }) {
           </button>
         )}
       </nav>
+
+      {/* Gmail connection */}
+      {!collapsed && (
+        <div style={{ padding: "0 10px 8px" }}>
+          {gmailStatus.connected ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 11px", borderRadius: 9, background: "rgba(34,197,94,0.06)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#34D399" }} />
+                <span style={{ fontSize: 10, color: "#15803D", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 110 }}>
+                  {gmailStatus.email || "Gmail"}
+                </span>
+              </div>
+              <button data-testid="gmail-disconnect-btn" onClick={disconnectGmail} title="Disconnect Gmail" style={{ background: "none", border: "none", cursor: "pointer", color: "#8892b0", padding: 2 }}>
+                <Unplug size={11} />
+              </button>
+            </div>
+          ) : (
+            <button
+              data-testid="gmail-connect-btn"
+              onClick={connectGmail}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "7px 11px", borderRadius: 9, border: "1px solid rgba(43,63,191,0.12)",
+                background: "transparent", cursor: "pointer", fontSize: 11, fontWeight: 500, color: "#8892b0",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(43,63,191,0.04)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <Mail size={12} /> Connect Gmail
+            </button>
+          )}
+        </div>
+      )}
 
       {/* User section */}
       <div style={{

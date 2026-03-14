@@ -1,8 +1,10 @@
-import { X, GraduationCap, Mail } from "lucide-react";
-import { useState } from "react";
+import { X, GraduationCap, Mail, Send, RefreshCw } from "lucide-react";
+import { useState, useEffect } from "react";
 import useJobStore from "@/store/jobStore";
 import InterviewPrepModal from "@/components/board/InterviewPrepModal";
 import EmailLogModal from "@/components/board/EmailLogModal";
+import ComposeEmailModal from "@/components/board/ComposeEmailModal";
+import { api } from "@/lib/api";
 
 function formatTimestamp(ts) {
   if (!ts) return "";
@@ -22,6 +24,35 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
   const clearSelection = useJobStore((state) => state.clearSelection);
   const [showPrep, setShowPrep] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
+  const [showCompose, setShowCompose] = useState(false);
+  const [composeTo, setComposeTo] = useState('');
+  const [gmailEmails, setGmailEmails] = useState([]);
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    api.gmailStatus().then((s) => {
+      setGmailConnected(s.connected);
+      if (s.connected && job) loadEmails();
+    }).catch(() => {});
+    // eslint-disable-next-line
+  }, [job?.id]);
+
+  const loadEmails = async () => {
+    try {
+      const data = await api.gmailEmails(job?.id);
+      setGmailEmails(data.messages || []);
+    } catch {}
+  };
+
+  const syncGmail = async () => {
+    setSyncing(true);
+    try {
+      await api.gmailScan();
+      await loadEmails();
+    } catch {}
+    setSyncing(false);
+  };
 
   const job = jobs.find((j) => j.id === selectedJobId);
   if (!job) return null;
@@ -394,8 +425,46 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
           ))
         )}
       </div>
+
+      {/* Gmail Emails */}
+      {gmailConnected && (
+        <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(43,63,191,0.07)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(43,63,191,0.5)" }}>
+              Emails
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button data-testid="sync-gmail-btn" onClick={syncGmail} disabled={syncing} style={{ background: "none", border: "none", cursor: "pointer", color: "#2B3FBF", padding: 2 }} title="Sync">
+                <RefreshCw size={12} style={{ animation: syncing ? "spin 1s linear infinite" : "none" }} />
+              </button>
+              <button data-testid="compose-email-btn" onClick={() => { setComposeTo(job.contacts?.[0]?.email || ""); setShowCompose(true); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#2B3FBF", padding: 2 }} title="Compose">
+                <Send size={12} />
+              </button>
+            </div>
+          </div>
+          {gmailEmails.length === 0 ? (
+            <div style={{ fontSize: 11, color: "rgba(26,31,60,0.35)" }}>No emails found for this role's contacts</div>
+          ) : (
+            gmailEmails.slice(0, 5).map((email) => (
+              <div key={email.id} style={{ marginBottom: 10, padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,0.50)", border: "1px solid rgba(43,63,191,0.05)" }}>
+                <div style={{ fontSize: 11, fontWeight: 500, color: "#1a1f3c", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {email.subject || "(no subject)"}
+                </div>
+                <div style={{ fontSize: 10, color: "rgba(26,31,60,0.35)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {email.from}
+                </div>
+                <div style={{ fontSize: 10, color: "rgba(26,31,60,0.25)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {email.snippet}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       <InterviewPrepModal isOpen={showPrep} onClose={() => setShowPrep(false)} job={job} />
       <EmailLogModal isOpen={showEmail} onClose={() => setShowEmail(false)} job={job} />
+      <ComposeEmailModal isOpen={showCompose} onClose={() => setShowCompose(false)} to={composeTo} subject={`Re: ${job.title} at ${job.company}`} jobCompany={job.company} />
     </div>
   );
 }

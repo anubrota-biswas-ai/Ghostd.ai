@@ -7,7 +7,7 @@ from datetime import datetime
 class JobflowAPITester:
     def __init__(self):
         self.base_url = "https://job-tracker-ai-9.preview.emergentagent.com/api"
-        self.session_token = "test_session_1773442632948"  # From MongoDB creation
+        self.session_token = "test_session_1773482217176"  # From MongoDB creation
         self.headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.session_token}'
@@ -477,6 +477,107 @@ Phone: (555) 987-6543"""
             self.log_test("POST /ai/parse-email", False, None, str(e))
             return False
 
+    def test_gmail_status(self):
+        """Test GET /api/gmail/status when Gmail not connected"""
+        try:
+            response = requests.get(f"{self.base_url}/gmail/status", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                # Should return {connected: false} when Gmail not connected
+                expected_connected = False
+                success = data.get('connected') == expected_connected
+                print(f"   Connected: {data.get('connected', 'N/A')}, Email: {data.get('email', 'N/A')}")
+            self.log_test("GET /gmail/status", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /gmail/status", False, None, str(e))
+            return False
+
+    def test_gmail_oauth_login(self):
+        """Test GET /api/oauth/gmail/login returns valid OAuth URL"""
+        try:
+            response = requests.get(f"{self.base_url}/oauth/gmail/login", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                auth_url = data.get('auth_url', '')
+                # Check if auth_url is a valid Google OAuth URL
+                success = auth_url.startswith('https://accounts.google.com/o/oauth2/auth')
+                print(f"   Auth URL valid: {success}")
+                if success:
+                    print(f"   URL starts with: {auth_url[:50]}...")
+            self.log_test("GET /oauth/gmail/login", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /oauth/gmail/login", False, None, str(e))
+            return False
+
+    def test_gmail_emails_not_connected(self):
+        """Test GET /api/gmail/emails returns 400 when Gmail not connected"""
+        try:
+            response = requests.get(f"{self.base_url}/gmail/emails", headers=self.headers, timeout=10)
+            success = response.status_code == 400
+            if success:
+                data = response.json()
+                success = 'Gmail not connected' in data.get('detail', '')
+                print(f"   Error message: {data.get('detail', 'N/A')}")
+            self.log_test("GET /gmail/emails (not connected)", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /gmail/emails (not connected)", False, None, str(e))
+            return False
+
+    def test_gmail_send_not_connected(self):
+        """Test POST /api/gmail/send returns 400 when Gmail not connected"""
+        email_data = {
+            "to": "test@example.com",
+            "subject": "Test Email",
+            "body": "This is a test email"
+        }
+        try:
+            response = requests.post(f"{self.base_url}/gmail/send", headers=self.headers, json=email_data, timeout=10)
+            success = response.status_code == 400
+            if success:
+                data = response.json()
+                success = 'Gmail not connected' in data.get('detail', '')
+                print(f"   Error message: {data.get('detail', 'N/A')}")
+            self.log_test("POST /gmail/send (not connected)", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("POST /gmail/send (not connected)", False, None, str(e))
+            return False
+
+    def test_gmail_scan_not_connected(self):
+        """Test POST /api/gmail/scan returns 400 when Gmail not connected"""
+        try:
+            response = requests.post(f"{self.base_url}/gmail/scan", headers=self.headers, timeout=10)
+            success = response.status_code == 400
+            if success:
+                data = response.json()
+                success = 'Gmail not connected' in data.get('detail', '')
+                print(f"   Error message: {data.get('detail', 'N/A')}")
+            self.log_test("POST /gmail/scan (not connected)", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("POST /gmail/scan (not connected)", False, None, str(e))
+            return False
+
+    def test_gmail_disconnect(self):
+        """Test POST /api/gmail/disconnect works without error"""
+        try:
+            response = requests.post(f"{self.base_url}/gmail/disconnect", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                success = data.get('ok') == True
+                print(f"   Disconnect successful: {success}")
+            self.log_test("POST /gmail/disconnect", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("POST /gmail/disconnect", False, None, str(e))
+            return False
+
     def run_all_tests(self):
         """Run all API tests"""
         print("🚀 Starting Jobflow API Tests")
@@ -524,6 +625,15 @@ Phone: (555) 987-6543"""
         
         print("\n📧 Testing Email Parsing...")
         self.test_email_parsing()
+
+        # Gmail API tests
+        print("\n📮 Testing Gmail API endpoints...")
+        self.test_gmail_status()
+        self.test_gmail_oauth_login()
+        self.test_gmail_emails_not_connected()
+        self.test_gmail_send_not_connected()
+        self.test_gmail_scan_not_connected()
+        self.test_gmail_disconnect()
 
         # Summary
         print("-" * 50)

@@ -616,6 +616,186 @@ Return ONLY the JSON object."""
     except Exception:
         return {"raw_response": response, "error": "Could not parse email"}
 
+# ─── Gmail Integration ───
+
+import warnings as _warnings
+import base64
+from email.mime.text import MIMEText as _MIMEText
+from google_auth_oauthlib.flow import Flow as _GmailFlow
+from googleapiclient.discovery import build as _gmail_build
+from google.oauth2.credentials import Credentials as _GmailCreds
+from google.auth.transport.requests import Request as _GoogleReq
+
+GMAIL_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.modify",
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+]
+
+def _gmail_config():
+    return {"web": {
+        "client_id": os.environ.get('GOOGLE_CLIENT_ID', ''),
+        "client_secret": os.environ.get('GOOGLE_CLIENT_SECRET', ''),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+    }}
+
+def _gmail_redirect(request: Request):
+    proto = request.headers.get('x-forwarded-proto', 'https')
+    host = request.headers.get('x-forwarded-host') or request.headers.get('host', '')
+    return f"{proto}://{host}/api/oauth/gmail/callback"
+
+async def _get_gmail_svc(user_id: str):
+    tok = await db.gmail_tokens.find_one({"user_id": user_id}, {"_id": 0})
+    if not tok:
+        return None
+    creds = _GmailCreds(
+        token=tok["access_token"], refresh_token=tok.get("refresh_token"),
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+        client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    )
+    exp = tok.get("expires_at")
+    if exp:
+        if isinstance(exp, str): exp = datetime.fromisoformat(exp)
+        if exp.tzinfo is None: exp = exp.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) >= exp:
+            creds.refresh(_GoogleReq())
+            await db.gmail_tokens.update_one({"user_id": user_id}, {"$set": {
+                "access_token": creds.token,
+                "expires_at": creds.expiry.isoformat() if creds.expiry else None,
+            }})
+    return _gmail_build('gmail', 'v1', credentials=creds)
+
+@api_router.get("/oauth/gmail/login")
+async def gmail_login(request: Request):
+    user = await get_current_user(request)
+    redir = _gmail_redirect(request)
+    flow = _GmailFlow.from_client_config(_gmail_config(), scopes=GMAIL_SCOPES, redirect_uri=redir)
+    url, state = flow.authorization_url(access_type='offline', prompt='consent', include_granted_scopes='true')
+    await db.oauth_states.insert_one({"state": state, "user_id": user["user_id"], "created_at": datetime.now(timezone.utc).isoformat()})
+    return {"auth_url": url}
+
+@api_router.get("/oauth/gmail/callback")
+async def gmail_callback(code: str, state: str, request: Request):
+    state_doc = await db.oauth_states.find_one({"state": state})
+    if not state_doc:
+        from starlette.responses import RedirectResponse
+        return RedirectResponse("/?gmail=error")
+    user_id = state_doc["user_id"]
+    await db.oauth_states.delete_one({"state": state})
+    redir = _gmail_redirect(request)
+    flow = _GmailFlow.from_client_config(_gmail_config(), scopes=GMAIL_SCOPES, redirect_uri=redir)
+    with _warnings.catch_warnings():
+        _warnings.simplefilter("ignore")
+        flow.fetch_token(code=code)
+    creds = flow.credentials
+    svc = _gmail_build('gmail', 'v1', credentials=creds)
+    profile = svc.users().getProfile(userId='me').execute()
+    await db.gmail_tokens.delete_many({"user_id": user_id})
+    await db.gmail_tokens.insert_one({
+        "user_id": user_id, "access_token": creds.token, "refresh_token": creds.refresh_token,
+        "expires_at": creds.expiry.isoformat() if creds.expiry else None,
+        "connected_email": profile.get("emailAddress", ""),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    from starlette.responses import RedirectResponse
+    return RedirectResponse("/?gmail=connected")
+
+@api_router.get("/gmail/status")
+async def gmail_status(request: Request):
+    user = await get_current_user(request)
+    tok = await db.gmail_tokens.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return {"connected": bool(tok), "email": tok.get("connected_email", "") if tok else ""}
+
+@api_router.post("/gmail/disconnect")
+async def gmail_disconnect(request: Request):
+    user = await get_current_user(request)
+    await db.gmail_tokens.delete_many({"user_id": user["user_id"]})
+    return {"ok": True}
+
+@api_router.get("/gmail/emails")
+async def gmail_emails(request: Request, job_id: str = None, q: str = None, max_results: int = 20):
+    user = await get_current_user(request)
+    svc = await _get_gmail_svc(user["user_id"])
+    if not svc:
+        raise HTTPException(status_code=400, detail="Gmail not connected")
+    search = q or ""
+    if job_id:
+        contacts = await db.contacts.find({"application_id": job_id, "user_id": user["user_id"]}, {"_id": 0}).to_list(100)
+        emails = [c["email"] for c in contacts if c.get("email")]
+        if emails:
+            eq = " OR ".join([f"from:{e} OR to:{e}" for e in emails])
+            search = f"({eq})" + (f" {search}" if search else "")
+    try:
+        res = svc.users().messages().list(userId='me', q=search or None, maxResults=max_results).execute()
+        messages = []
+        for mm in res.get('messages', [])[:max_results]:
+            msg = svc.users().messages().get(userId='me', id=mm['id'], format='metadata', metadataHeaders=['From', 'To', 'Subject', 'Date']).execute()
+            hdrs = {h['name']: h['value'] for h in msg.get('payload', {}).get('headers', [])}
+            messages.append({"id": msg['id'], "thread_id": msg.get('threadId', ''), "from": hdrs.get('From', ''), "to": hdrs.get('To', ''), "subject": hdrs.get('Subject', ''), "date": hdrs.get('Date', ''), "snippet": msg.get('snippet', ''), "label_ids": msg.get('labelIds', [])})
+        return {"messages": messages, "total": res.get('resultSizeEstimate', 0)}
+    except Exception as e:
+        logger.error(f"Gmail list error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class SendEmailRequest(BaseModel):
+    to: str
+    subject: str
+    body: str
+
+@api_router.post("/gmail/send")
+async def gmail_send(req: SendEmailRequest, request: Request):
+    user = await get_current_user(request)
+    svc = await _get_gmail_svc(user["user_id"])
+    if not svc:
+        raise HTTPException(status_code=400, detail="Gmail not connected")
+    msg = _MIMEText(req.body)
+    msg['to'] = req.to
+    msg['subject'] = req.subject
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    try:
+        sent = svc.users().messages().send(userId='me', body={'raw': raw}).execute()
+        return {"id": sent['id'], "status": "sent"}
+    except Exception as e:
+        logger.error(f"Gmail send error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/gmail/scan")
+async def gmail_scan(request: Request):
+    user = await get_current_user(request)
+    svc = await _get_gmail_svc(user["user_id"])
+    if not svc:
+        raise HTTPException(status_code=400, detail="Gmail not connected")
+    contacts = await db.contacts.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(1000)
+    c_emails = list(set([c["email"] for c in contacts if c.get("email")]))
+    if not c_emails:
+        return {"scanned": 0, "new_activities": 0}
+    eq = " OR ".join([f"from:{e}" for e in c_emails])
+    try:
+        res = svc.users().messages().list(userId='me', q=f"({eq}) newer_than:7d", maxResults=50).execute()
+        new_act = 0
+        for mm in res.get('messages', []):
+            msg = svc.users().messages().get(userId='me', id=mm['id'], format='metadata', metadataHeaders=['From', 'Subject', 'Date']).execute()
+            hdrs = {h['name']: h['value'] for h in msg.get('payload', {}).get('headers', [])}
+            from_h = hdrs.get('From', '')
+            subj = hdrs.get('Subject', '')
+            for c in contacts:
+                if c.get("email") and c["email"] in from_h:
+                    existing = await db.activity_items.find_one({"application_id": c["application_id"], "message": {"$regex": subj[:30].replace("(", "\\(").replace(")", "\\)")}})
+                    if not existing:
+                        await db.activity_items.insert_one({"id": f"act_{uuid.uuid4().hex[:12]}", "application_id": c["application_id"], "user_id": user["user_id"], "message": f"Gmail: {c['name']} — \"{subj}\"", "timestamp": datetime.now(timezone.utc).isoformat()})
+                        await db.contacts.update_one({"id": c["id"]}, {"$set": {"last_contacted": datetime.now(timezone.utc).isoformat()}})
+                        new_act += 1
+                    break
+        return {"scanned": len(res.get('messages', [])), "new_activities": new_act}
+    except Exception as e:
+        logger.error(f"Gmail scan error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ─── Root ───
 
 @api_router.get("/")
