@@ -676,34 +676,59 @@ async def gmail_login(request: Request):
     redir = _gmail_redirect(request)
     flow = _GmailFlow.from_client_config(_gmail_config(), scopes=GMAIL_SCOPES, redirect_uri=redir)
     url, state = flow.authorization_url(access_type='offline', prompt='consent', include_granted_scopes='true')
-    await db.oauth_states.insert_one({"state": state, "user_id": user["user_id"], "created_at": datetime.now(timezone.utc).isoformat()})
+    # Store code_verifier for PKCE — required by newer google-auth-oauthlib
+    await db.oauth_states.insert_one({
+        "state": state, "user_id": user["user_id"],
+        "code_verifier": flow.code_verifier,
+        "redirect_uri": redir,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    logger.info(f"Gmail OAuth started for user {user['user_id']}, redirect_uri={redir}")
     return {"auth_url": url}
 
 @api_router.get("/oauth/gmail/callback")
 async def gmail_callback(code: str, state: str, request: Request):
+    from starlette.responses import RedirectResponse
     state_doc = await db.oauth_states.find_one({"state": state})
     if not state_doc:
-        from starlette.responses import RedirectResponse
-        return RedirectResponse("/?gmail=error")
+        logger.error("Gmail callback: invalid state parameter")
+        return RedirectResponse("/?gmail=error&reason=invalid_state")
     user_id = state_doc["user_id"]
+    code_verifier = state_doc.get("code_verifier")
+    stored_redirect = state_doc.get("redirect_uri")
     await db.oauth_states.delete_one({"state": state})
-    redir = _gmail_redirect(request)
-    flow = _GmailFlow.from_client_config(_gmail_config(), scopes=GMAIL_SCOPES, redirect_uri=redir)
-    with _warnings.catch_warnings():
-        _warnings.simplefilter("ignore")
-        flow.fetch_token(code=code)
-    creds = flow.credentials
-    svc = _gmail_build('gmail', 'v1', credentials=creds)
-    profile = svc.users().getProfile(userId='me').execute()
-    await db.gmail_tokens.delete_many({"user_id": user_id})
-    await db.gmail_tokens.insert_one({
-        "user_id": user_id, "access_token": creds.token, "refresh_token": creds.refresh_token,
-        "expires_at": creds.expiry.isoformat() if creds.expiry else None,
-        "connected_email": profile.get("emailAddress", ""),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    })
-    from starlette.responses import RedirectResponse
-    return RedirectResponse("/?gmail=connected")
+
+    # Use the same redirect_uri that was used in the login step
+    redir = stored_redirect or _gmail_redirect(request)
+    logger.info(f"Gmail callback for user {user_id}, redirect_uri={redir}")
+
+    try:
+        flow = _GmailFlow.from_client_config(_gmail_config(), scopes=GMAIL_SCOPES, redirect_uri=redir)
+        # Restore PKCE code_verifier from the login step
+        flow.code_verifier = code_verifier
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("ignore")
+            flow.fetch_token(code=code)
+    except Exception as e:
+        logger.error(f"Gmail token exchange failed: {type(e).__name__}: {e}")
+        return RedirectResponse(f"/?gmail=error&reason=token_exchange")
+
+    try:
+        creds = flow.credentials
+        svc = _gmail_build('gmail', 'v1', credentials=creds)
+        profile = svc.users().getProfile(userId='me').execute()
+        await db.gmail_tokens.delete_many({"user_id": user_id})
+        await db.gmail_tokens.insert_one({
+            "user_id": user_id, "access_token": creds.token, "refresh_token": creds.refresh_token,
+            "expires_at": creds.expiry.isoformat() if creds.expiry else None,
+            "connected_email": profile.get("emailAddress", ""),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        logger.info(f"Gmail connected for user {user_id}: {profile.get('emailAddress')}")
+        return RedirectResponse("/?gmail=connected")
+    except Exception as e:
+        logger.error(f"Gmail profile/token storage failed: {type(e).__name__}: {e}")
+        return RedirectResponse("/?gmail=error&reason=profile_fetch")
 
 @api_router.get("/gmail/status")
 async def gmail_status(request: Request):
