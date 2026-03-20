@@ -127,6 +127,7 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
   const [composeTo, setComposeTo] = useState("");
   const [gmailEmails, setGmailEmails] = useState([]);
   const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailInfo, setGmailInfo] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [editingField, setEditingField] = useState(null);
   const [fieldValue, setFieldValue] = useState("");
@@ -139,10 +140,20 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
     api.gmailStatus().then((s) => {
       setGmailConnected(s.connected);
       if (s.connected && selectedJobId) {
-        api.gmailEmails(selectedJobId).then((d) => setGmailEmails(d.messages || [])).catch(() => {});
+        // Extract domain from company_profile for Gmail filtering
+        const j = jobs.find((x) => x.id === selectedJobId);
+        const cpData = j?.company_profile || {};
+        let domain = cpData.domain || "";
+        if (!domain && cpData.website) {
+          try { domain = new URL(cpData.website.startsWith("http") ? cpData.website : `https://${cpData.website}`).hostname.replace(/^www\./, ""); } catch {}
+        }
+        api.gmailEmails(selectedJobId, domain).then((d) => {
+          setGmailEmails(d.messages || []);
+          setGmailInfo(d.info || "");
+        }).catch(() => {});
       }
     }).catch(() => {});
-  }, [selectedJobId]);
+  }, [selectedJobId, jobs]);
 
   if (!job) return null;
 
@@ -163,7 +174,17 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
 
   const syncGmail = async () => {
     setSyncing(true);
-    try { await api.gmailScan(); const d = await api.gmailEmails(selectedJobId); setGmailEmails(d.messages || []); } catch {}
+    try {
+      await api.gmailScan();
+      const cpData = job?.company_profile || {};
+      let domain = cpData.domain || "";
+      if (!domain && cpData.website) {
+        try { domain = new URL(cpData.website.startsWith("http") ? cpData.website : `https://${cpData.website}`).hostname.replace(/^www\./, ""); } catch {}
+      }
+      const d = await api.gmailEmails(selectedJobId, domain);
+      setGmailEmails(d.messages || []);
+      setGmailInfo(d.info || "");
+    } catch {}
     setSyncing(false);
   };
 
@@ -221,14 +242,69 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
         </div>
       </div>
 
-      {/* Section B — Social Links */}
+      {/* Section B — Social Icons Bar */}
       <div style={{ padding: "0 18px 8px", borderTop: "1px solid rgba(43,63,191,0.07)", paddingTop: 12 }}>
-        <div style={sectionLabel}>Links</div>
-        <EditableField label="LinkedIn" field="linkedin_url" value={cp.linkedin_url} icon={Linkedin} />
-        <EditableField label="Instagram" field="instagram_url" value={cp.instagram_url} icon={Instagram} />
-        <EditableField label="YouTube" field="youtube_url" value={cp.youtube_url} icon={Youtube} />
-        <EditableField label="TikTok" field="tiktok_url" value={cp.tiktok_url} icon={TikTokIcon} />
-        <EditableField label="Website" field="website" value={cp.website} icon={Globe} />
+        <div style={{ display: "flex", gap: 10, marginBottom: editingField && ["linkedin_url","instagram_url","youtube_url","tiktok_url","website"].includes(editingField) ? 8 : 0 }}>
+          {[
+            { field: "linkedin_url", icon: Linkedin, label: "LinkedIn" },
+            { field: "instagram_url", icon: Instagram, label: "Instagram" },
+            { field: "youtube_url", icon: Youtube, label: "YouTube" },
+            { field: "tiktok_url", icon: TikTokIcon, label: "TikTok" },
+            { field: "website", icon: Globe, label: "Website" },
+          ].map(({ field, icon: Icon, label }) => {
+            const url = cp[field];
+            const hasUrl = !!url;
+            return (
+              <div
+                key={field}
+                data-testid={`social-icon-${field}`}
+                title={hasUrl ? url.replace(/https?:\/\/(www\.)?/, "").substring(0, 40) : `Add ${label}`}
+                onClick={() => {
+                  if (hasUrl) {
+                    window.open(url.startsWith("http") ? url : `https://${url}`, "_blank");
+                  } else {
+                    setEditingField(field);
+                    setFieldValue("");
+                  }
+                }}
+                style={{
+                  width: 32, height: 32, borderRadius: 8, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: hasUrl ? "rgba(43,63,191,0.06)" : "transparent",
+                  transition: "background 0.15s, opacity 0.15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = hasUrl ? "rgba(43,63,191,0.12)" : "rgba(43,63,191,0.04)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = hasUrl ? "rgba(43,63,191,0.06)" : "transparent"; }}
+                onContextMenu={(e) => { e.preventDefault(); setEditingField(field); setFieldValue(url || ""); }}
+              >
+                <Icon size={18} style={{ color: hasUrl ? "#2B3FBF" : "#8892b0", opacity: hasUrl ? 1 : 0.3 }} />
+              </div>
+            );
+          })}
+        </div>
+        {/* Inline edit input for social links */}
+        {editingField && ["linkedin_url","instagram_url","youtube_url","tiktok_url","website"].includes(editingField) && (
+          <div style={{ marginTop: 6 }}>
+            <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(43,63,191,0.4)", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              {{ linkedin_url: "LinkedIn", instagram_url: "Instagram", youtube_url: "YouTube", tiktok_url: "TikTok", website: "Website" }[editingField]} URL
+            </div>
+            <div style={{ display: "flex", gap: 4 }}>
+              <input
+                style={smallInput}
+                value={fieldValue}
+                onChange={(e) => setFieldValue(e.target.value)}
+                placeholder="https://..."
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveField(editingField, fieldValue);
+                  if (e.key === "Escape") setEditingField(null);
+                }}
+              />
+              <button onClick={() => saveField(editingField, fieldValue)} style={{ background: "none", border: "none", cursor: "pointer", color: "#2B3FBF", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>Save</button>
+              <button onClick={() => setEditingField(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#8892b0", fontSize: 10, whiteSpace: "nowrap" }}>Cancel</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Notes */}
@@ -298,21 +374,27 @@ export default function RightPanel({ mode = "panel", sidebarWidth = 210 }) {
             </div>
           ))
         )}
-        {gmailConnected && gmailEmails.length > 0 && (
+        {gmailConnected && (
           <div style={{ marginTop: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(43,63,191,0.4)" }}>Gmail</span>
-              <div style={{ display: "flex", gap: 4 }}>
-                <button data-testid="sync-gmail-btn" onClick={syncGmail} style={editBtn}><RefreshCw size={10} style={{ animation: syncing ? "spin 1s linear infinite" : "none" }} /></button>
-                <button data-testid="compose-email-btn" onClick={() => { setComposeTo(job.contacts?.[0]?.email || ""); setShowCompose(true); }} style={editBtn}><Send size={10} /></button>
-              </div>
-            </div>
-            {gmailEmails.slice(0, 3).map((e) => (
-              <div key={e.id} style={{ marginBottom: 6, padding: "6px 8px", borderRadius: 6, background: "rgba(255,255,255,0.40)", fontSize: 10 }}>
-                <div style={{ fontWeight: 500, color: "#1a1f3c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.subject || "(no subject)"}</div>
-                <div style={{ color: "rgba(26,31,60,0.30)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.from}</div>
-              </div>
-            ))}
+            {gmailEmails.length > 0 ? (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(43,63,191,0.4)" }}>Gmail</span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <button data-testid="sync-gmail-btn" onClick={syncGmail} style={editBtn}><RefreshCw size={10} style={{ animation: syncing ? "spin 1s linear infinite" : "none" }} /></button>
+                    <button data-testid="compose-email-btn" onClick={() => { setComposeTo(job.contacts?.[0]?.email || ""); setShowCompose(true); }} style={editBtn}><Send size={10} /></button>
+                  </div>
+                </div>
+                {gmailEmails.slice(0, 3).map((e) => (
+                  <div key={e.id} style={{ marginBottom: 6, padding: "6px 8px", borderRadius: 6, background: "rgba(255,255,255,0.40)", fontSize: 10 }}>
+                    <div style={{ fontWeight: 500, color: "#1a1f3c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.subject || "(no subject)"}</div>
+                    <div style={{ color: "rgba(26,31,60,0.30)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.from}</div>
+                  </div>
+                ))}
+              </>
+            ) : gmailInfo ? (
+              <div style={{ fontSize: 11, color: "rgba(26,31,60,0.35)", marginTop: 4 }}>{gmailInfo}</div>
+            ) : null}
           </div>
         )}
       </div>

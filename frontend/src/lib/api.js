@@ -78,7 +78,13 @@ export const api = {
   gmailLogin: () => request('GET', '/oauth/gmail/login'),
   gmailStatus: () => request('GET', '/gmail/status'),
   gmailDisconnect: () => request('POST', '/gmail/disconnect'),
-  gmailEmails: (jobId) => request('GET', `/gmail/emails${jobId ? `?job_id=${jobId}` : ''}`),
+  gmailEmails: (jobId, domain) => {
+    const params = new URLSearchParams();
+    if (jobId) params.set('job_id', jobId);
+    if (domain) params.set('domain', domain);
+    const qs = params.toString();
+    return request('GET', `/gmail/emails${qs ? `?${qs}` : ''}`);
+  },
   gmailSend: (to, subject, body) => request('POST', '/gmail/send', { to, subject, body }),
   gmailScan: () => request('POST', '/gmail/scan'),
 

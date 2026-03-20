@@ -843,18 +843,29 @@ async def gmail_disconnect(request: Request):
     return {"ok": True}
 
 @api_router.get("/gmail/emails")
-async def gmail_emails(request: Request, job_id: str = None, q: str = None, max_results: int = 20):
+async def gmail_emails(request: Request, job_id: str = None, domain: str = None, q: str = None, max_results: int = 20):
     user = await get_current_user(request)
     svc = await _get_gmail_svc(user["user_id"])
     if not svc:
         raise HTTPException(status_code=400, detail="Gmail not connected")
     search = q or ""
+    has_filter = False
     if job_id:
         contacts = await db.contacts.find({"application_id": job_id, "user_id": user["user_id"]}, {"_id": 0}).to_list(100)
         emails = [c["email"] for c in contacts if c.get("email")]
         if emails:
             eq = " OR ".join([f"from:{e} OR to:{e}" for e in emails])
             search = f"({eq})" + (f" {search}" if search else "")
+            has_filter = True
+    if not has_filter and domain:
+        # Filter by company domain when no contacts exist
+        clean_domain = domain.strip().lower()
+        if clean_domain:
+            search = f"(from:@{clean_domain} OR to:@{clean_domain})" + (f" {search}" if search else "")
+            has_filter = True
+    if not has_filter:
+        # No contacts and no domain — return empty with info message
+        return {"messages": [], "total": 0, "info": "Add a contact or website to see related emails"}
     try:
         res = svc.users().messages().list(userId='me', q=search or None, maxResults=max_results).execute()
         messages = []

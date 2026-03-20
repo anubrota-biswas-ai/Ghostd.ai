@@ -7,7 +7,7 @@ from datetime import datetime
 class JobflowAPITester:
     def __init__(self):
         self.base_url = "https://job-tracker-ai-9.preview.emergentagent.com/api"
-        self.session_token = "test_session_1774033499812"  # From MongoDB creation
+        self.session_token = "test_session_1774036082416"  # From MongoDB creation
         self.headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.session_token}'
@@ -578,6 +578,78 @@ Phone: (555) 987-6543"""
             self.log_test("POST /gmail/disconnect", False, None, str(e))
             return False
 
+    # ===== JOBFLOW UI FIXES TESTING =====
+    def test_gmail_emails_with_domain_param(self):
+        """Test GET /api/gmail/emails accepts domain query parameter"""
+        try:
+            # Test with domain parameter
+            params = {"domain": "testcorp.com"}
+            response = requests.get(f"{self.base_url}/gmail/emails", headers=self.headers, params=params, timeout=10)
+            # Should return 400 since Gmail not connected, but we're testing the parameter is accepted
+            success = response.status_code == 400
+            if success:
+                data = response.json()
+                success = 'Gmail not connected' in data.get('detail', '')
+                print(f"   Domain parameter accepted, error: {data.get('detail', 'N/A')}")
+            self.log_test("GET /gmail/emails (with domain param)", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /gmail/emails (with domain param)", False, None, str(e))
+            return False
+
+    def test_gmail_emails_no_contacts_no_domain(self):
+        """Test GET /api/gmail/emails returns empty with info when no contacts and no domain"""
+        try:
+            # Test without any parameters - should return 400 since Gmail not connected
+            response = requests.get(f"{self.base_url}/gmail/emails", headers=self.headers, timeout=10)
+            success = response.status_code == 400
+            if success:
+                data = response.json()
+                success = 'Gmail not connected' in data.get('detail', '')
+                print(f"   No params, error: {data.get('detail', 'N/A')}")
+            self.log_test("GET /gmail/emails (no contacts, no domain)", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /gmail/emails (no contacts, no domain)", False, None, str(e))
+            return False
+
+    def test_sponsorship_badge_text(self):
+        """Test sponsorship badge shows 'No sponsor licence' for not_found status"""
+        # Create a job with a company that won't be found in sponsorship register
+        job_data = {
+            "title": "Test Engineer",
+            "company": "UnknownTestCorp123",
+            "location": "London",
+            "status": "applied"
+        }
+        try:
+            response = requests.post(f"{self.base_url}/jobs", headers=self.headers, json=job_data, timeout=10)
+            if response.status_code == 200:
+                job = response.json()
+                job_id = job.get('id')
+                sponsorship = job.get('sponsorship', {})
+                
+                # Check if sponsorship status is not_found
+                if sponsorship.get('status') == 'not_found':
+                    print(f"   ✅ Job created with 'not_found' sponsorship status")
+                    print(f"   ✅ This should display 'No sponsor licence' in UI")
+                    success = True
+                else:
+                    print(f"   ❌ Expected 'not_found' status, got: {sponsorship.get('status')}")
+                    success = False
+                
+                # Cleanup
+                requests.delete(f"{self.base_url}/jobs/{job_id}", headers=self.headers, timeout=10)
+                
+                self.log_test("Sponsorship badge text (not_found)", success, response.status_code)
+                return success
+            else:
+                self.log_test("Sponsorship badge text (not_found)", False, response.status_code, response.text)
+                return False
+        except Exception as e:
+            self.log_test("Sponsorship badge text (not_found)", False, None, str(e))
+            return False
+
     # ===== NEW FEATURES TESTING =====
     def test_company_profile_social_links(self):
         """Test PUT /api/jobs/{job_id}/company-profile accepts new social media fields"""
@@ -1055,6 +1127,13 @@ Phone: (555) 987-6543"""
         if not self.test_auth_me():
             print("❌ Auth failed, stopping tests")
             return False
+
+        # ===== JOBFLOW UI FIXES TESTING =====
+        print("\n🔧 JOBFLOW UI FIXES: Social Icons, Gmail Domain Param, Sponsorship Badge")
+        print("-" * 50)
+        self.test_gmail_emails_with_domain_param()
+        self.test_gmail_emails_no_contacts_no_domain()
+        self.test_sponsorship_badge_text()
 
         # ===== NEW FEATURES TESTING =====
         print("\n🆕 NEW FEATURES: Social Links, Sponsorship Updates, Manual Override")

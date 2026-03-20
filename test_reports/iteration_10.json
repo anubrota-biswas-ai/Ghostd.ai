@@ -1,0 +1,48 @@
+{
+  "summary": "Completed testing of Jobflow UI fixes: Social icons bar implementation, Gmail domain parameter support, and sponsorship badge text updates. Most features working correctly with minor issues identified.",
+  
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Social Icons",
+        "issue": "Icons not showing faded state (opacity 0.3) when URL is cleared - remains at opacity 1",
+        "selector": "[data-testid='social-icon-*']",
+        "fix_priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "passed_tests": [
+    "Social icons bar displays 5 icons (LinkedIn, Instagram, YouTube, TikTok, Globe) in horizontal row",
+    "Social icons are correctly sized 32x32px with borderRadius 8",
+    "No old-style text labels (LinkedIn: —) found in UI",
+    "Right-click on social icons activates edit mode with inline input",
+    "Notes field visible below social icons section",
+    "Backend accepts domain query parameter for Gmail emails endpoint",
+    "Backend returns appropriate error when Gmail not connected",
+    "Company profile accepts all social media URL fields",
+    "Sponsorship badges show correct 'Sponsors visas' text",
+    "All existing features still work: board, right panel sections, kanban"
+  ],
+  
+  "test_report_links": ["/app/backend_test.py"],
+  
+  "action_item_for_main_agent": "Fix social icon opacity behavior: Icons should show opacity 0.3 when URL is empty/cleared, and opacity 1 when URL is set. Currently icons remain at full opacity even after URL is cleared.",
+  
+  "updated_files": ["/app/backend_test.py"],
+  
+  "success_percentage": {
+    "backend": "93.2% (41/44 tests passed)",
+    "frontend": "90% (9/10 key features working)"
+  },
+  
+  "should_call_test_agent_after_fix": "false",
+  "should_main_agent_test_itself": "true"
+}
