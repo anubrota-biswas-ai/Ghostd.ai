@@ -1,3 +1,5 @@
+import { Info } from "lucide-react";
+
 export default function JobCard({ job, isSelected }) {
   const hasContacts = job.contacts && job.contacts.length > 0;
 
@@ -48,6 +50,28 @@ export default function JobCard({ job, isSelected }) {
       >
         {job.company}
       </div>
+
+      {/* Sponsorship badge */}
+      {job.sponsorship && (
+        <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6 }}>
+          {job.sponsorship.status === "found" ? (
+            <span data-testid={`sponsorship-badge-${job.id}`} style={{ fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: "rgba(34,197,94,0.12)", color: "#15803D" }}>
+              Sponsors visas
+            </span>
+          ) : job.sponsorship.status === "not_found" ? (
+            <span data-testid={`sponsorship-badge-${job.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: "rgba(245,158,11,0.12)", color: "#B45309" }}>
+              Not found on register
+              <span title="This company was not found on the UK Home Office Register of Licensed Sponsors. This does not necessarily mean they cannot sponsor — some companies use umbrella sponsors or haven't registered yet." style={{ cursor: "help" }}>
+                <Info size={9} />
+              </span>
+            </span>
+          ) : (
+            <span style={{ fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: "rgba(156,163,175,0.15)", color: "#9CA3AF" }}>
+              Sponsorship unknown
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Title — weight 300 */}
       <div

@@ -45,6 +45,14 @@ export const api = {
   // Activity
   addActivity: (jobId, data) => request('POST', `/jobs/${jobId}/activity`, data),
 
+  // Sponsorship
+  checkSponsorship: (company) => request('GET', `/sponsorship/check?company=${encodeURIComponent(company)}`),
+  refreshSponsors: () => request('POST', '/sponsorship/refresh'),
+  sponsorshipStatus: () => request('GET', '/sponsorship/status'),
+
+  // Company Profile
+  updateCompanyProfile: (jobId, data) => request('PUT', `/jobs/${jobId}/company-profile`, data),
+
   // CV
   uploadCV: (data) => request('POST', '/cv/upload', data),
   uploadCVFile: async (file) => {
@@ -65,12 +73,6 @@ export const api = {
   parseEmail: (emailText, jobId) =>
     request('POST', '/ai/parse-email', { email_text: emailText, job_id: jobId }),
 
-  // Interview Prep
-  generateInterviewPrep: (jobId, jdText) =>
-    request('POST', `/jobs/${jobId}/interview-prep`, { jd_text: jdText }),
-  getInterviewPrep: (jobId) => request('GET', `/jobs/${jobId}/interview-prep`),
-  updateInterviewPrep: (prepId, data) => request('PUT', `/interview-prep/${prepId}`, data),
-
   // Gmail
   gmailLogin: () => request('GET', '/oauth/gmail/login'),
   gmailStatus: () => request('GET', '/gmail/status'),
@@ -78,4 +80,20 @@ export const api = {
   gmailEmails: (jobId) => request('GET', `/gmail/emails${jobId ? `?job_id=${jobId}` : ''}`),
   gmailSend: (to, subject, body) => request('POST', '/gmail/send', { to, subject, body }),
   gmailScan: () => request('POST', '/gmail/scan'),
+
+  // Notifications
+  getNotifications: () => request('GET', '/notifications'),
+  confirmNotification: (id) => request('POST', `/notifications/${id}/confirm`),
+  dismissNotification: (id) => request('POST', `/notifications/${id}/dismiss`),
+
+  // ATS Results
+  saveATSResults: (data) => request('POST', '/ats/save', data),
+  getATSResults: (jobId) => request('GET', `/ats/results${jobId ? `?job_id=${jobId}` : ''}`),
+  updateATSResults: (id, data) => request('PUT', `/ats/results/${id}`, data),
+
+  // Cover Letters
+  saveCoverLetter: (data) => request('POST', '/cover-letter/save', data),
+  getCoverLetter: (jobId) => request('GET', `/cover-letter${jobId ? `?job_id=${jobId}` : ''}`),
+  regenerateSection: (paragraph, instruction, cvText, jdText) =>
+    request('POST', '/cover-letter/regenerate-section', { paragraph, instruction, cv_text: cvText, jd_text: jdText }),
 };

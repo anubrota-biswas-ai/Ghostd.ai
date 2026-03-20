@@ -7,7 +7,7 @@ from datetime import datetime
 class JobflowAPITester:
     def __init__(self):
         self.base_url = "https://job-tracker-ai-9.preview.emergentagent.com/api"
-        self.session_token = "test_session_1773482217176"  # From MongoDB creation
+        self.session_token = "test_session_1774008829896"  # From MongoDB creation
         self.headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.session_token}'
@@ -578,18 +578,400 @@ Phone: (555) 987-6543"""
             self.log_test("POST /gmail/disconnect", False, None, str(e))
             return False
 
+    # ===== PHASE 2: UK SPONSORSHIP CHECKER =====
+    def test_sponsorship_status(self):
+        """Test GET /api/sponsorship/status - check if 140K+ records loaded"""
+        try:
+            response = requests.get(f"{self.base_url}/sponsorship/status", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                loaded = data.get('loaded', False)
+                record_count = data.get('record_count', 0)
+                success = loaded and record_count >= 140000  # Should have 140K+ records
+                print(f"   Loaded: {loaded}, Record count: {record_count:,}")
+            self.log_test("GET /sponsorship/status", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /sponsorship/status", False, None, str(e))
+            return False
+
+    def test_sponsorship_check_deloitte(self):
+        """Test GET /api/sponsorship/check?company=Deloitte should return found"""
+        try:
+            response = requests.get(f"{self.base_url}/sponsorship/check?company=Deloitte", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                status = data.get('status')
+                matched_name = data.get('matched_name', '')
+                confidence = data.get('confidence', 0)
+                success = status == "found" and matched_name
+                print(f"   Status: {status}, Match: {matched_name}, Confidence: {confidence}")
+            self.log_test("GET /sponsorship/check (Deloitte)", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /sponsorship/check (Deloitte)", False, None, str(e))
+            return False
+
+    def test_sponsorship_check_unknown(self):
+        """Test GET /api/sponsorship/check?company=SomeRandomCo should return not_found"""
+        try:
+            response = requests.get(f"{self.base_url}/sponsorship/check?company=SomeRandomCo123", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                status = data.get('status')
+                confidence = data.get('confidence', 0)
+                success = status == "not_found"
+                print(f"   Status: {status}, Confidence: {confidence}")
+            self.log_test("GET /sponsorship/check (Random)", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /sponsorship/check (Random)", False, None, str(e))
+            return False
+
+    def test_create_deloitte_job(self):
+        """Create a Deloitte job to test auto sponsorship checking"""
+        job_data = {
+            "title": "Senior Software Engineer",
+            "company": "Deloitte",
+            "location": "London",
+            "status": "applied",
+            "jd_raw_text": "We are looking for a senior software engineer...",
+            "notes": "Test job for sponsorship checking"
+        }
+        try:
+            response = requests.post(f"{self.base_url}/jobs", headers=self.headers, json=job_data, timeout=10)
+            success = response.status_code == 200
+            if success:
+                job = response.json()
+                job_id = job.get('id')
+                sponsorship = job.get('sponsorship', {})
+                has_sponsorship = sponsorship.get('status') == 'found'
+                success = job_id is not None and has_sponsorship
+                print(f"   Job ID: {job_id}, Auto-sponsorship check: {has_sponsorship}")
+                print(f"   Sponsorship: {sponsorship}")
+                self.deloitte_job_id = job_id  # Store for later cleanup
+            self.log_test("POST /jobs (Deloitte auto-sponsorship)", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("POST /jobs (Deloitte auto-sponsorship)", False, None, str(e))
+            return False
+
+    # ===== PHASE 3: COMPANY INTELLIGENCE =====
+    def test_update_company_profile(self):
+        """Test PUT /api/jobs/{job_id}/company-profile for Company Intelligence panel"""
+        if not hasattr(self, 'deloitte_job_id') or not self.deloitte_job_id:
+            print("❌ PUT /jobs/{id}/company-profile - No Deloitte job ID")
+            return False
+        
+        profile_data = {
+            "domain": "deloitte.com",
+            "website": "https://www.deloitte.com",
+            "linkedin_url": "https://linkedin.com/company/deloitte",
+            "glassdoor_url": "https://glassdoor.com/company/deloitte",
+            "logo_url": "https://logo.clearbit.com/deloitte.com",
+            "industry": "Professional Services",
+            "company_size": "large",
+            "funding_stage": "Public",
+            "tech_stack": ["Java", "Python", "React", "AWS"],
+            "social_links": ["https://twitter.com/deloitte"],
+            "notes": "Great company culture and benefits"
+        }
+        try:
+            response = requests.put(
+                f"{self.base_url}/jobs/{self.deloitte_job_id}/company-profile", 
+                headers=self.headers, 
+                json=profile_data, 
+                timeout=10
+            )
+            success = response.status_code == 200
+            self.log_test("PUT /jobs/{id}/company-profile", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("PUT /jobs/{id}/company-profile", False, None, str(e))
+            return False
+
+    # ===== PHASE 4: NOTIFICATIONS =====
+    def test_get_notifications(self):
+        """Test GET /api/notifications"""
+        try:
+            response = requests.get(f"{self.base_url}/notifications", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            if success:
+                notifications = response.json()
+                success = isinstance(notifications, list)
+                print(f"   Notifications count: {len(notifications)}")
+            self.log_test("GET /notifications", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /notifications", False, None, str(e))
+            return False
+
+    def test_notifications_confirm_dismiss(self):
+        """Test notification confirm/dismiss endpoints (will create dummy notification if needed)"""
+        # First check if we have any notifications
+        try:
+            response = requests.get(f"{self.base_url}/notifications", headers=self.headers, timeout=10)
+            if response.status_code == 200:
+                notifications = response.json()
+                if notifications:
+                    notif_id = notifications[0]['id']
+                    # Test confirm
+                    confirm_response = requests.post(f"{self.base_url}/notifications/{notif_id}/confirm", headers=self.headers, timeout=10)
+                    success_confirm = confirm_response.status_code == 200
+                    self.log_test("POST /notifications/{id}/confirm", success_confirm, confirm_response.status_code)
+                    return success_confirm
+                else:
+                    print("   No notifications to test confirm/dismiss")
+                    # Just test the endpoints exist with invalid ID
+                    confirm_response = requests.post(f"{self.base_url}/notifications/invalid_id/confirm", headers=self.headers, timeout=10)
+                    dismiss_response = requests.post(f"{self.base_url}/notifications/invalid_id/dismiss", headers=self.headers, timeout=10)
+                    success = confirm_response.status_code == 404 and dismiss_response.status_code == 404
+                    self.log_test("POST /notifications/{id}/confirm (404)", success, 404)
+                    self.log_test("POST /notifications/{id}/dismiss (404)", success, 404)
+                    return success
+            return False
+        except Exception as e:
+            self.log_test("POST /notifications confirm/dismiss", False, None, str(e))
+            return False
+
+    # ===== PHASE 5: ATS RESULTS =====
+    def test_save_ats_results(self):
+        """Test POST /api/ats/save for persistent ATS results"""
+        if not hasattr(self, 'deloitte_job_id') or not self.deloitte_job_id:
+            print("❌ POST /ats/save - No job ID")
+            return False
+        
+        ats_data = {
+            "job_id": self.deloitte_job_id,
+            "overall_score": 85,
+            "skills_score": 80,
+            "experience_score": 90,
+            "language_score": 85,
+            "hard_skills": [
+                {"name": "Python", "status": "matched"},
+                {"name": "JavaScript", "status": "matched"},
+                {"name": "Go", "status": "missing"}
+            ],
+            "soft_skills": [
+                {"name": "Communication", "status": "matched"},
+                {"name": "Leadership", "status": "missing"}
+            ],
+            "suggestions": [
+                {
+                    "id": "1",
+                    "original": "Worked on web applications",
+                    "rewrite": "Developed scalable web applications using Python and React",
+                    "category": "experience",
+                    "impact": "high"
+                }
+            ],
+            "accepted_suggestions": [],
+            "original_cv_text": "Sample CV text",
+            "jd_text": "Sample JD text"
+        }
+        try:
+            response = requests.post(f"{self.base_url}/ats/save", headers=self.headers, json=ats_data, timeout=10)
+            success = response.status_code == 200
+            if success:
+                result = response.json()
+                self.ats_result_id = result.get('id')
+                success = self.ats_result_id is not None
+                print(f"   ATS Result ID: {self.ats_result_id}")
+            self.log_test("POST /ats/save", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("POST /ats/save", False, None, str(e))
+            return False
+
+    def test_get_ats_results(self):
+        """Test GET /api/ats/results for loading saved ATS results"""
+        try:
+            # Test without job_id
+            response = requests.get(f"{self.base_url}/ats/results", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            
+            if success and hasattr(self, 'deloitte_job_id') and self.deloitte_job_id:
+                # Test with job_id
+                response2 = requests.get(f"{self.base_url}/ats/results?job_id={self.deloitte_job_id}", headers=self.headers, timeout=10)
+                success2 = response2.status_code == 200
+                if success2:
+                    result = response2.json()
+                    if result:
+                        print(f"   Retrieved ATS result: {result.get('overall_score')}% score")
+                    success = success and success2
+            
+            self.log_test("GET /ats/results", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /ats/results", False, None, str(e))
+            return False
+
+    def test_update_ats_results(self):
+        """Test PUT /api/ats/results/{result_id}"""
+        if not hasattr(self, 'ats_result_id') or not self.ats_result_id:
+            print("❌ PUT /ats/results/{id} - No ATS result ID")
+            return False
+        
+        update_data = {
+            "accepted_suggestions": ["1"],
+            "optimised_cv_text": "Updated CV text with improvements"
+        }
+        try:
+            response = requests.put(
+                f"{self.base_url}/ats/results/{self.ats_result_id}", 
+                headers=self.headers, 
+                json=update_data, 
+                timeout=10
+            )
+            success = response.status_code == 200
+            self.log_test("PUT /ats/results/{id}", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("PUT /ats/results/{id}", False, None, str(e))
+            return False
+
+    # ===== PHASE 6: COVER LETTERS =====
+    def test_save_cover_letter(self):
+        """Test POST /api/cover-letter/save"""
+        if not hasattr(self, 'deloitte_job_id') or not self.deloitte_job_id:
+            print("❌ POST /cover-letter/save - No job ID")
+            return False
+        
+        cover_data = {
+            "job_id": self.deloitte_job_id,
+            "content": "Dear Hiring Manager,\n\nI am writing to express my interest in the Senior Software Engineer position at Deloitte.\n\nSincerely,\nJohn Doe",
+            "tone": "professional",
+            "company": "Deloitte"
+        }
+        try:
+            response = requests.post(f"{self.base_url}/cover-letter/save", headers=self.headers, json=cover_data, timeout=10)
+            success = response.status_code == 200
+            if success:
+                result = response.json()
+                self.cover_letter_id = result.get('id')
+                success = self.cover_letter_id is not None or result.get('ok') == True
+                print(f"   Cover Letter ID: {self.cover_letter_id}")
+            self.log_test("POST /cover-letter/save", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("POST /cover-letter/save", False, None, str(e))
+            return False
+
+    def test_get_cover_letter(self):
+        """Test GET /api/cover-letter"""
+        try:
+            # Test without job_id
+            response = requests.get(f"{self.base_url}/cover-letter", headers=self.headers, timeout=10)
+            success = response.status_code == 200
+            
+            if success and hasattr(self, 'deloitte_job_id') and self.deloitte_job_id:
+                # Test with job_id
+                response2 = requests.get(f"{self.base_url}/cover-letter?job_id={self.deloitte_job_id}", headers=self.headers, timeout=10)
+                success2 = response2.status_code == 200
+                if success2:
+                    result = response2.json()
+                    if result:
+                        content_length = len(result.get('content', ''))
+                        print(f"   Retrieved cover letter: {content_length} characters, tone: {result.get('tone')}")
+                    success = success and success2
+            
+            self.log_test("GET /cover-letter", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("GET /cover-letter", False, None, str(e))
+            return False
+
+    def test_regenerate_section(self):
+        """Test POST /api/cover-letter/regenerate-section"""
+        regen_data = {
+            "paragraph": "I am writing to express my interest in this position.",
+            "instruction": "Make it more specific to software engineering",
+            "cv_text": "Sample CV text",
+            "jd_text": "Sample JD text"
+        }
+        try:
+            response = requests.post(f"{self.base_url}/cover-letter/regenerate-section", headers=self.headers, json=regen_data, timeout=30)
+            success = response.status_code == 200
+            if success:
+                result = response.json()
+                paragraph = result.get('paragraph', '')
+                success = len(paragraph) > 0
+                print(f"   Regenerated paragraph length: {len(paragraph)} characters")
+            self.log_test("POST /cover-letter/regenerate-section", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("POST /cover-letter/regenerate-section", False, None, str(e))
+            return False
+
+    def cleanup_test_data(self):
+        """Clean up created test data"""
+        print("\n🧹 Cleaning up test data...")
+        
+        # Delete Deloitte job (will cascade delete contacts, activities)
+        if hasattr(self, 'deloitte_job_id') and self.deloitte_job_id:
+            try:
+                response = requests.delete(f"{self.base_url}/jobs/{self.deloitte_job_id}", headers=self.headers, timeout=10)
+                if response.status_code == 200:
+                    print("   ✅ Cleaned up Deloitte job")
+                else:
+                    print("   ❌ Failed to clean up Deloitte job")
+            except Exception as e:
+                print(f"   ❌ Error cleaning up job: {e}")
+                
+        # Regular created_job_id cleanup handled in run_all_tests
+
     def run_all_tests(self):
-        """Run all API tests"""
-        print("🚀 Starting Jobflow API Tests")
+        """Run all API tests including new Phase 2-6 features"""
+        print("🚀 Starting Jobflow v2.0 API Tests (6 Phases)")
         print(f"Base URL: {self.base_url}")
         print(f"Session Token: {self.session_token[:20]}...")
-        print("-" * 50)
+        print("=" * 60)
 
         # Auth tests
         if not self.test_auth_me():
             print("❌ Auth failed, stopping tests")
             return False
 
+        # ===== PHASE 2: UK SPONSORSHIP CHECKER =====
+        print("\n🇬🇧 PHASE 2: UK Sponsorship Checker (140K+ records)")
+        print("-" * 50)
+        self.test_sponsorship_status()
+        self.test_sponsorship_check_deloitte()
+        self.test_sponsorship_check_unknown()
+        self.test_create_deloitte_job()  # Auto sponsorship check
+
+        # ===== PHASE 3: COMPANY INTELLIGENCE PANEL =====
+        print("\n🏢 PHASE 3: Company Intelligence Panel")
+        print("-" * 50)
+        self.test_update_company_profile()
+
+        # ===== PHASE 4: GMAIL NOTIFICATIONS =====
+        print("\n📧 PHASE 4: Gmail Auto-progression & Notifications")
+        print("-" * 50)
+        self.test_get_notifications()
+        self.test_notifications_confirm_dismiss()
+
+        # ===== PHASE 5: PERSISTENT ATS RESULTS =====
+        print("\n📊 PHASE 5: Persistent ATS Results")
+        print("-" * 50)
+        self.test_save_ats_results()
+        self.test_get_ats_results()
+        self.test_update_ats_results()
+
+        # ===== PHASE 6: COVER LETTER EDITOR =====
+        print("\n✍️ PHASE 6: Cover Letter Inline Editor")
+        print("-" * 50)
+        self.test_save_cover_letter()
+        self.test_get_cover_letter()
+        self.test_regenerate_section()
+
+        # ===== EXISTING FEATURES TESTS =====
+        print("\n🔄 Testing Existing Features Still Work...")
+        print("-" * 50)
+        
         # Jobs CRUD tests
         self.test_jobs_get_empty()
         if self.test_create_job():
@@ -618,8 +1000,7 @@ Phone: (555) 987-6543"""
         self.test_ai_analyze_cv()
         self.test_ai_cover_letter()
         
-        # NEW FEATURE TESTS
-        print("\n🆕 Testing NEW FEATURES...")
+        # CV and Email features
         print("\n📄 Testing CV File Upload...")
         self.test_cv_file_upload()
         
@@ -635,10 +1016,15 @@ Phone: (555) 987-6543"""
         self.test_gmail_scan_not_connected()
         self.test_gmail_disconnect()
 
+        # Cleanup
+        self.cleanup_test_data()
+
         # Summary
-        print("-" * 50)
-        print(f"📊 Tests passed: {self.tests_passed}/{self.tests_run}")
+        print("=" * 60)
+        print(f"📊 FINAL RESULTS")
+        print(f"Tests passed: {self.tests_passed}/{self.tests_run}")
         print(f"Success rate: {(self.tests_passed/self.tests_run)*100:.1f}%")
+        print("=" * 60)
         
         return self.tests_passed == self.tests_run
 

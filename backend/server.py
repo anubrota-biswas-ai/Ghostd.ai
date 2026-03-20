@@ -10,6 +10,8 @@ from datetime import datetime, timezone, timedelta
 import httpx
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 from PyPDF2 import PdfReader
+from rapidfuzz import fuzz, process as rfprocess
+import csv as _csv
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -90,9 +92,6 @@ class CoverLetterRequest(BaseModel):
 class CVUpload(BaseModel):
     raw_text: str
     filename: str = "resume.txt"
-
-class InterviewPrepRequest(BaseModel):
-    jd_text: str = ""
 
 # ─── Auth Helper ───
 
@@ -217,9 +216,29 @@ async def create_job(job_data: JobCreate, request: Request):
         **job_data.model_dump(),
         "match_score": None, "skills_score": None,
         "experience_score": None, "language_score": None,
-        "jd_parsed": None, "created_at": now, "updated_at": now,
+        "jd_parsed": None, "company_profile": {}, "sponsorship": None,
+        "created_at": now, "updated_at": now,
     }
     await db.job_applications.insert_one(doc)
+
+    # Auto-check sponsorship
+    if job_data.company:
+        try:
+            count = await db.sponsors_register.count_documents({})
+            if count == 0:
+                await _load_sponsors_to_db()
+            sponsors = await db.sponsors_register.find({}, {"_id": 0, "company_name": 1, "city": 1, "type": 1, "route": 1}).to_list(200000)
+            names = [s["company_name"] for s in sponsors if s["company_name"]]
+            if names:
+                results = rfprocess.extract(job_data.company.strip(), names, scorer=fuzz.WRatio, limit=1)
+                if results and results[0][1] >= 85:
+                    sp = {"status": "found", "matched_name": results[0][0], "confidence": round(results[0][1] / 100, 2)}
+                else:
+                    sp = {"status": "not_found", "confidence": round(results[0][1] / 100, 2) if results else 0}
+                await db.job_applications.update_one({"id": job_id}, {"$set": {"sponsorship": sp}})
+                doc["sponsorship"] = sp
+        except Exception as e:
+            logger.error(f"Sponsorship check failed: {e}")
 
     await db.activity_items.insert_one({
         "id": f"act_{uuid.uuid4().hex[:12]}", "application_id": job_id,
@@ -363,76 +382,108 @@ async def upload_cv_file(file: UploadFile = File(...), request: Request = None):
     await db.cvs.insert_one(doc)
     return {k: v for k, v in doc.items() if k != "_id"}
 
-# ─── Interview Prep ───
+# ─── UK Sponsorship Licence Checker ───
 
-@api_router.post("/jobs/{job_id}/interview-prep")
-async def generate_interview_prep(job_id: str, req: InterviewPrepRequest, request: Request):
-    user = await get_current_user(request)
-    job = await db.job_applications.find_one({"id": job_id, "user_id": user["user_id"]}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+SPONSORS_CSV_URL = "https://assets.publishing.service.gov.uk/media/69bd225d13101e9908704984/2026-03-20_-_Worker_and_Temporary_Worker.csv"
+SPONSORS_CSV_PATH = Path(__file__).parent / "sponsors_register.csv"
 
-    jd = req.jd_text or job.get("jd_raw_text", "")
-    title = job.get("title", "the role")
-    company = job.get("company", "the company")
+async def _load_sponsors_to_db():
+    """Parse CSV and load into MongoDB."""
+    if not SPONSORS_CSV_PATH.exists():
+        import httpx as _hx
+        async with _hx.AsyncClient() as hc:
+            resp = await hc.get(SPONSORS_CSV_URL, timeout=60, follow_redirects=True)
+            SPONSORS_CSV_PATH.write_bytes(resp.content)
 
-    chat = get_llm()
-    prompt = f"""Based on this job, generate interview preparation materials. Return ONLY valid JSON:
-{{
-  "questions": [
-    {{"id": "q1", "type": "technical" or "behavioural", "question": "question text", "hints": "brief approach suggestion"}}
-  ],
-  "company_summary": "2-3 sentence company/role research summary",
-  "talking_points": ["point1", "point2", "point3"],
-  "prep_checklist": ["task1", "task2", "task3"]
-}}
+    records = []
+    with open(SPONSORS_CSV_PATH, 'r', encoding='utf-8-sig') as f:
+        reader = _csv.DictReader(f)
+        for row in reader:
+            records.append({
+                "company_name": (row.get("Organisation Name") or "").strip(),
+                "city": (row.get("Town/City") or "").strip(),
+                "county": (row.get("County") or "").strip(),
+                "type": (row.get("Type & Rating") or "").strip(),
+                "route": (row.get("Route") or "").strip(),
+            })
+    await db.sponsors_register.delete_many({})
+    if records:
+        await db.sponsors_register.insert_many(records)
+    await db.sponsor_meta.update_one(
+        {"key": "status"},
+        {"$set": {"last_updated": datetime.now(timezone.utc).isoformat(), "record_count": len(records)}},
+        upsert=True,
+    )
+    logger.info(f"Loaded {len(records)} sponsor records")
+    return len(records)
 
-Generate exactly 8-10 questions (mix of technical and behavioural).
-Generate 3-5 talking points for "Why this role?".
-Generate 4-6 prep checklist items.
+@api_router.get("/sponsorship/check")
+async def check_sponsorship(company: str, request: Request):
+    await get_current_user(request)
+    count = await db.sponsors_register.count_documents({})
+    if count == 0:
+        try:
+            await _load_sponsors_to_db()
+        except Exception as e:
+            logger.error(f"Failed to load sponsors: {e}")
+            return {"status": "unknown", "message": "Register not loaded", "confidence": 0}
 
-Role: {title} at {company}
-Job Description:
-{jd if jd else 'No detailed JD available — generate general questions for a ' + title + ' role at ' + company}
+    # Get all company names for fuzzy matching
+    sponsors = await db.sponsors_register.find({}, {"_id": 0, "company_name": 1, "city": 1, "type": 1, "route": 1}).to_list(200000)
+    names = [s["company_name"] for s in sponsors if s["company_name"]]
 
-Return ONLY the JSON object."""
+    if not names:
+        return {"status": "unknown", "message": "Register empty", "confidence": 0}
 
-    msg = UserMessage(text=prompt)
-    response = await chat.send_message(msg)
-    try:
-        parsed = parse_llm_json(response)
-    except Exception:
-        parsed = {"questions": [], "company_summary": "", "talking_points": [], "prep_checklist": []}
+    results = rfprocess.extract(company.strip(), names, scorer=fuzz.WRatio, limit=3)
+    if results and results[0][1] >= 85:
+        match_name = results[0][0]
+        match_score = results[0][1]
+        matched = next((s for s in sponsors if s["company_name"] == match_name), {})
+        return {
+            "status": "found",
+            "matched_name": match_name,
+            "city": matched.get("city", ""),
+            "type": matched.get("type", ""),
+            "route": matched.get("route", ""),
+            "confidence": round(match_score / 100, 2),
+        }
+    best = results[0] if results else ("", 0)
+    return {"status": "not_found", "best_match": best[0], "confidence": round(best[1] / 100, 2) if best[1] else 0}
 
-    prep_id = f"prep_{uuid.uuid4().hex[:12]}"
-    now = datetime.now(timezone.utc).isoformat()
-    doc = {
-        "id": prep_id, "job_id": job_id, "user_id": user["user_id"],
-        **parsed, "user_notes": {}, "checked_items": [],
-        "created_at": now, "updated_at": now,
-    }
+@api_router.post("/sponsorship/refresh")
+async def refresh_sponsors(request: Request):
+    await get_current_user(request)
+    if SPONSORS_CSV_PATH.exists():
+        SPONSORS_CSV_PATH.unlink()
+    count = await _load_sponsors_to_db()
+    return {"ok": True, "records": count}
 
-    await db.interview_preps.delete_many({"job_id": job_id, "user_id": user["user_id"]})
-    await db.interview_preps.insert_one(doc)
-    return {k: v for k, v in doc.items() if k != "_id"}
+@api_router.get("/sponsorship/status")
+async def sponsorship_status(request: Request):
+    await get_current_user(request)
+    meta = await db.sponsor_meta.find_one({"key": "status"}, {"_id": 0})
+    if meta:
+        return {"loaded": True, "last_updated": meta.get("last_updated"), "record_count": meta.get("record_count", 0)}
+    return {"loaded": False, "last_updated": None, "record_count": 0}
 
-@api_router.get("/jobs/{job_id}/interview-prep")
-async def get_interview_prep(job_id: str, request: Request):
-    user = await get_current_user(request)
-    prep = await db.interview_preps.find_one({"job_id": job_id, "user_id": user["user_id"]}, {"_id": 0})
-    return prep
+# ─── Company Profile ───
 
-@api_router.put("/interview-prep/{prep_id}")
-async def update_interview_prep(prep_id: str, request: Request):
+@api_router.put("/jobs/{job_id}/company-profile")
+async def update_company_profile(job_id: str, request: Request):
     user = await get_current_user(request)
     body = await request.json()
-    update_data = {}
-    if "user_notes" in body:
-        update_data["user_notes"] = body["user_notes"]
-    if "checked_items" in body:
-        update_data["checked_items"] = body["checked_items"]
-    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    await db.interview_preps.update_one({"id": prep_id, "user_id": user["user_id"]}, {"$set": update_data})
+    allowed = ["domain", "website", "linkedin_url", "glassdoor_url", "logo_url",
+               "industry", "company_size", "funding_stage", "tech_stack", "social_links", "notes"]
+    profile_update = {f"company_profile.{k}": v for k, v in body.items() if k in allowed}
+    if not profile_update:
+        return {"ok": True}
+    result = await db.job_applications.update_one(
+        {"id": job_id, "user_id": user["user_id"]},
+        {"$set": profile_update}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Job not found")
     return {"ok": True}
 
 # ─── AI Endpoints ───
@@ -465,10 +516,15 @@ async def parse_jd(req: ParseJDRequest, request: Request):
   "remote": true or false,
   "salary_min": number or null,
   "salary_max": number or null,
-  "currency": "USD",
+  "currency": "GBP",
   "skills": ["skill1", "skill2"],
   "responsibilities": ["resp1", "resp2"],
-  "seniority": "Junior/Mid/Senior/Lead/Staff/Principal"
+  "seniority": "Junior/Mid/Senior/Lead/Staff/Principal",
+  "domain": "company website domain e.g. stripe.com or null",
+  "website": "full company website URL or null",
+  "linkedin_url": "company LinkedIn page URL or null",
+  "industry": "industry sector or null",
+  "company_size": "startup/small/medium/large/enterprise or null"
 }}
 
 Job Description:
@@ -803,11 +859,13 @@ async def gmail_scan(request: Request):
     try:
         res = svc.users().messages().list(userId='me', q=f"({eq}) newer_than:7d", maxResults=50).execute()
         new_act = 0
+        new_notifs = 0
         for mm in res.get('messages', []):
             msg = svc.users().messages().get(userId='me', id=mm['id'], format='metadata', metadataHeaders=['From', 'Subject', 'Date']).execute()
             hdrs = {h['name']: h['value'] for h in msg.get('payload', {}).get('headers', [])}
             from_h = hdrs.get('From', '')
             subj = hdrs.get('Subject', '')
+            snippet = msg.get('snippet', '')
             for c in contacts:
                 if c.get("email") and c["email"] in from_h:
                     existing = await db.activity_items.find_one({"application_id": c["application_id"], "message": {"$regex": subj[:30].replace("(", "\\(").replace(")", "\\)")}})
@@ -815,11 +873,157 @@ async def gmail_scan(request: Request):
                         await db.activity_items.insert_one({"id": f"act_{uuid.uuid4().hex[:12]}", "application_id": c["application_id"], "user_id": user["user_id"], "message": f"Gmail: {c['name']} — \"{subj}\"", "timestamp": datetime.now(timezone.utc).isoformat()})
                         await db.contacts.update_one({"id": c["id"]}, {"$set": {"last_contacted": datetime.now(timezone.utc).isoformat()}})
                         new_act += 1
+
+                        # Phase 4: Classify email with Claude for auto-progression
+                        try:
+                            job = await db.job_applications.find_one({"id": c["application_id"]}, {"_id": 0})
+                            if job:
+                                chat = get_llm()
+                                classify_prompt = f"""Classify this email related to a job application. Return ONLY valid JSON.
+Job: {job.get('title','')} at {job.get('company','')} (current status: {job.get('status','')})
+Email from: {from_h}
+Subject: {subj}
+Preview: {snippet}
+Return: {{"email_type": "rejection|interview|assessment|offer|follow_up|generic", "suggested_status": "rejected|interview|in_progress|offer" or null, "confidence": 0.0-1.0, "extracted_info": {{"interview_date": null, "interviewer_name": null, "notes": ""}}}}"""
+                                cls_msg = UserMessage(text=classify_prompt)
+                                cls_resp = await chat.send_message(cls_msg)
+                                cls = parse_llm_json(cls_resp)
+                                if cls.get("confidence", 0) >= 0.70 and cls.get("email_type") != "generic" and cls.get("suggested_status"):
+                                    await db.notifications.insert_one({
+                                        "id": f"notif_{uuid.uuid4().hex[:12]}", "user_id": user["user_id"],
+                                        "job_id": c["application_id"], "type": "email_classification",
+                                        "email_type": cls["email_type"], "suggested_status": cls["suggested_status"],
+                                        "confidence": cls["confidence"],
+                                        "email_subject": subj, "email_from": from_h, "email_snippet": snippet,
+                                        "status": "pending", "created_at": datetime.now(timezone.utc).isoformat(),
+                                    })
+                                    new_notifs += 1
+                        except Exception as ce:
+                            logger.error(f"Email classification error: {ce}")
                     break
-        return {"scanned": len(res.get('messages', [])), "new_activities": new_act}
+        return {"scanned": len(res.get('messages', [])), "new_activities": new_act, "new_notifications": new_notifs}
     except Exception as e:
         logger.error(f"Gmail scan error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ─── Notifications (Phase 4) ───
+
+@api_router.get("/notifications")
+async def list_notifications(request: Request):
+    user = await get_current_user(request)
+    return await db.notifications.find({"user_id": user["user_id"], "status": "pending"}, {"_id": 0}).sort("created_at", -1).to_list(50)
+
+@api_router.post("/notifications/{notif_id}/confirm")
+async def confirm_notification(notif_id: str, request: Request):
+    user = await get_current_user(request)
+    notif = await db.notifications.find_one({"id": notif_id, "user_id": user["user_id"]}, {"_id": 0})
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    if notif.get("suggested_status") and notif.get("job_id"):
+        labels = {"wishlist": "Wishlist", "applied": "Applied", "interview": "Interview", "in_progress": "In Progress", "offer": "Offer", "rejected": "Rejected"}
+        await db.job_applications.update_one({"id": notif["job_id"], "user_id": user["user_id"]}, {"$set": {"status": notif["suggested_status"], "updated_at": datetime.now(timezone.utc).isoformat()}})
+        await db.activity_items.insert_one({"id": f"act_{uuid.uuid4().hex[:12]}", "application_id": notif["job_id"], "user_id": user["user_id"], "message": f"Auto: moved to {labels.get(notif['suggested_status'], notif['suggested_status'])} (from email: {notif.get('email_subject', '')})", "timestamp": datetime.now(timezone.utc).isoformat()})
+    await db.notifications.update_one({"id": notif_id}, {"$set": {"status": "confirmed"}})
+    return {"ok": True}
+
+@api_router.post("/notifications/{notif_id}/dismiss")
+async def dismiss_notification(notif_id: str, request: Request):
+    user = await get_current_user(request)
+    await db.notifications.update_one({"id": notif_id, "user_id": user["user_id"]}, {"$set": {"status": "dismissed"}})
+    return {"ok": True}
+
+# ─── ATS Results (Phase 5) ───
+
+@api_router.post("/ats/save")
+async def save_ats_results(request: Request):
+    user = await get_current_user(request)
+    body = await request.json()
+    job_id = body.get("job_id")
+    result_id = f"ats_{uuid.uuid4().hex[:12]}"
+    doc = {
+        "id": result_id, "user_id": user["user_id"], "job_id": job_id,
+        "overall_score": body.get("overall_score"), "skills_score": body.get("skills_score"),
+        "experience_score": body.get("experience_score"), "language_score": body.get("language_score"),
+        "hard_skills": body.get("hard_skills", []), "soft_skills": body.get("soft_skills", []),
+        "suggestions": body.get("suggestions", []), "accepted_suggestions": body.get("accepted_suggestions", []),
+        "optimised_cv_text": body.get("optimised_cv_text", ""),
+        "original_cv_text": body.get("original_cv_text", ""), "jd_text": body.get("jd_text", ""),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if job_id:
+        await db.ats_results.delete_many({"job_id": job_id, "user_id": user["user_id"]})
+    await db.ats_results.insert_one(doc)
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+@api_router.get("/ats/results")
+async def get_ats_results(request: Request, job_id: str = None):
+    user = await get_current_user(request)
+    query = {"user_id": user["user_id"]}
+    if job_id:
+        query["job_id"] = job_id
+    result = await db.ats_results.find_one(query, {"_id": 0}, sort=[("created_at", -1)])
+    return result
+
+@api_router.put("/ats/results/{result_id}")
+async def update_ats_results(result_id: str, request: Request):
+    user = await get_current_user(request)
+    body = await request.json()
+    allowed = ["accepted_suggestions", "optimised_cv_text"]
+    update = {k: v for k, v in body.items() if k in allowed}
+    await db.ats_results.update_one({"id": result_id, "user_id": user["user_id"]}, {"$set": update})
+    return {"ok": True}
+
+# ─── Cover Letters (Phase 6) ───
+
+@api_router.post("/cover-letter/save")
+async def save_cover_letter(request: Request):
+    user = await get_current_user(request)
+    body = await request.json()
+    job_id = body.get("job_id")
+    doc = {
+        "id": f"cl_{uuid.uuid4().hex[:12]}", "user_id": user["user_id"],
+        "job_id": job_id, "content": body.get("content", ""),
+        "tone": body.get("tone", "professional"), "company": body.get("company", ""),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if job_id:
+        existing = await db.cover_letters.find_one({"job_id": job_id, "user_id": user["user_id"]})
+        if existing:
+            await db.cover_letters.update_one({"job_id": job_id, "user_id": user["user_id"]}, {"$set": {"content": doc["content"], "tone": doc["tone"], "updated_at": doc["updated_at"]}})
+            return {"ok": True, "id": existing.get("id")}
+    await db.cover_letters.insert_one(doc)
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+@api_router.get("/cover-letter")
+async def get_cover_letter(request: Request, job_id: str = None):
+    user = await get_current_user(request)
+    query = {"user_id": user["user_id"]}
+    if job_id:
+        query["job_id"] = job_id
+    return await db.cover_letters.find_one(query, {"_id": 0}, sort=[("updated_at", -1)])
+
+@api_router.post("/cover-letter/regenerate-section")
+async def regenerate_section(request: Request):
+    user = await get_current_user(request)
+    body = await request.json()
+    paragraph = body.get("paragraph", "")
+    instruction = body.get("instruction", "")
+    cv_text = body.get("cv_text", "")
+    jd_text = body.get("jd_text", "")
+    chat = get_llm()
+    prompt = f"""Rewrite this paragraph from a cover letter. {instruction if instruction else 'Improve it while maintaining the same tone and intent.'}
+
+Original paragraph:
+{paragraph}
+
+Context - CV: {cv_text[:500]}
+Context - JD: {jd_text[:500]}
+
+Return ONLY the rewritten paragraph text, no JSON, no markdown."""
+    msg = UserMessage(text=prompt)
+    response = await chat.send_message(msg)
+    return {"paragraph": response.strip()}
 
 # ─── Root ───
 

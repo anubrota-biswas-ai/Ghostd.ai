@@ -1,5 +1,6 @@
-import { Plus, Search, Bell } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useLocation } from "react-router-dom";
+import NotificationBell from "./NotificationBell";
 
 const pageTitles = {
   "/": "Application Board",
@@ -31,9 +32,7 @@ export default function Topbar({ onAddClick, compact }) {
         <button data-testid="search-btn" style={{ background: "none", border: "none", cursor: "pointer", padding: 6, color: "#8892b0", display: "flex", alignItems: "center" }}>
           <Search size={16} />
         </button>
-        <button data-testid="notifications-btn" style={{ background: "none", border: "none", cursor: "pointer", padding: 6, color: "#8892b0", display: "flex", alignItems: "center" }}>
-          <Bell size={16} />
-        </button>
+        <NotificationBell />
         <button
           data-testid="add-application-btn"
           onClick={onAddClick}
