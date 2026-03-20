@@ -232,9 +232,9 @@ async def create_job(job_data: JobCreate, request: Request):
             if names:
                 results = rfprocess.extract(job_data.company.strip(), names, scorer=fuzz.WRatio, limit=1)
                 if results and results[0][1] >= 85:
-                    sp = {"status": "found", "matched_name": results[0][0], "confidence": round(results[0][1] / 100, 2)}
+                    sp = {"status": "found", "matched_name": results[0][0], "confidence": round(results[0][1] / 100, 2), "manual_override": False}
                 else:
-                    sp = {"status": "not_found", "confidence": round(results[0][1] / 100, 2) if results else 0}
+                    sp = {"status": "not_found", "matched_name": results[0][0] if results else None, "confidence": round(results[0][1] / 100, 2) if results else 0, "manual_override": False}
                 await db.job_applications.update_one({"id": job_id}, {"$set": {"sponsorship": sp}})
                 doc["sponsorship"] = sp
         except Exception as e:
@@ -253,9 +253,13 @@ async def create_job(job_data: JobCreate, request: Request):
     return result
 
 @api_router.put("/jobs/{job_id}")
-async def update_job(job_id: str, updates: JobUpdate, request: Request):
+async def update_job(job_id: str, request: Request):
     user = await get_current_user(request)
-    update_data = {k: v for k, v in updates.model_dump().items() if v is not None}
+    body = await request.json()
+    job_fields = ["title", "company", "location", "remote", "url", "salary_min", "salary_max",
+                  "currency", "status", "date_applied", "jd_raw_text", "match_score",
+                  "skills_score", "experience_score", "language_score", "notes", "sponsorship"]
+    update_data = {k: v for k, v in body.items() if k in job_fields and v is not None}
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     result = await db.job_applications.update_one(
@@ -449,7 +453,7 @@ async def check_sponsorship(company: str, request: Request):
             "confidence": round(match_score / 100, 2),
         }
     best = results[0] if results else ("", 0)
-    return {"status": "not_found", "best_match": best[0], "confidence": round(best[1] / 100, 2) if best[1] else 0}
+    return {"status": "not_found", "matched_name": best[0] if best[0] else None, "confidence": round(best[1] / 100, 2) if best[1] else 0}
 
 @api_router.post("/sponsorship/refresh")
 async def refresh_sponsors(request: Request):
@@ -467,14 +471,54 @@ async def sponsorship_status(request: Request):
         return {"loaded": True, "last_updated": meta.get("last_updated"), "record_count": meta.get("record_count", 0)}
     return {"loaded": False, "last_updated": None, "record_count": 0}
 
+@api_router.post("/sponsorship/recheck-all")
+async def recheck_all_sponsorship(request: Request):
+    user = await get_current_user(request)
+    count = await db.sponsors_register.count_documents({})
+    if count == 0:
+        try:
+            await _load_sponsors_to_db()
+        except Exception:
+            return {"checked": 0, "updated": 0}
+
+    sponsors = await db.sponsors_register.find({}, {"_id": 0, "company_name": 1}).to_list(200000)
+    names = [s["company_name"] for s in sponsors if s["company_name"]]
+    if not names:
+        return {"checked": 0, "updated": 0}
+
+    jobs = await db.job_applications.find(
+        {"user_id": user["user_id"], "$or": [
+            {"sponsorship": None}, {"sponsorship": {"$exists": False}},
+            {"sponsorship.manual_override": {"$ne": True}}
+        ]}, {"_id": 0, "id": 1, "company": 1, "sponsorship": 1}
+    ).to_list(1000)
+
+    updated = 0
+    for job in jobs:
+        if job.get("sponsorship", {}).get("manual_override"):
+            continue
+        company = job.get("company", "").strip()
+        if not company:
+            continue
+        results = rfprocess.extract(company, names, scorer=fuzz.WRatio, limit=1)
+        if results and results[0][1] >= 85:
+            sp = {"status": "found", "matched_name": results[0][0], "confidence": round(results[0][1] / 100, 2), "manual_override": False}
+        else:
+            sp = {"status": "not_found", "matched_name": results[0][0] if results else None, "confidence": round(results[0][1] / 100, 2) if results else 0, "manual_override": False}
+        await db.job_applications.update_one({"id": job["id"]}, {"$set": {"sponsorship": sp}})
+        updated += 1
+
+    return {"checked": len(jobs), "updated": updated}
+
 # ─── Company Profile ───
 
 @api_router.put("/jobs/{job_id}/company-profile")
 async def update_company_profile(job_id: str, request: Request):
     user = await get_current_user(request)
     body = await request.json()
-    allowed = ["domain", "website", "linkedin_url", "glassdoor_url", "logo_url",
-               "industry", "company_size", "funding_stage", "tech_stack", "social_links", "notes"]
+    allowed = ["domain", "website", "linkedin_url", "logo_url",
+               "instagram_url", "youtube_url", "tiktok_url",
+               "industry", "company_size", "social_links", "notes"]
     profile_update = {f"company_profile.{k}": v for k, v in body.items() if k in allowed}
     if not profile_update:
         return {"ok": True}

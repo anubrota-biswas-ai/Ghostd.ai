@@ -1,12 +1,13 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
-  DndContext, DragOverlay, closestCorners,
+  DndContext, DragOverlay, rectIntersection,
   PointerSensor, useSensor, useSensors, useDroppable,
 } from "@dnd-kit/core";
 import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { MoreHorizontal } from "lucide-react";
 import useJobStore from "@/store/jobStore";
 import JobCard from "./JobCard";
 
@@ -19,10 +20,51 @@ const COLUMNS = [
   { id: "rejected", label: "Rejected", color: "#FCA5A5" },
 ];
 
-function SortableJobCard({ id }) {
+/* Context menu for moving cards */
+function CardContextMenu({ jobId, currentStatus, onClose }) {
+  const moveJob = useJobStore((s) => s.moveJob);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  return (
+    <div ref={ref} data-testid={`context-menu-${jobId}`} style={{
+      position: "absolute", top: 4, right: 4, zIndex: 50,
+      background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)",
+      borderRadius: 10, border: "1px solid rgba(43,63,191,0.12)",
+      boxShadow: "0 4px 16px rgba(43,63,191,0.12)", padding: "4px 0", minWidth: 140,
+    }}>
+      <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(43,63,191,0.4)", padding: "4px 12px" }}>Move to</div>
+      {COLUMNS.filter((c) => c.id !== currentStatus).map((c) => (
+        <button
+          key={c.id}
+          data-testid={`move-to-${c.id}`}
+          onClick={(e) => { e.stopPropagation(); moveJob(jobId, c.id); onClose(); }}
+          style={{
+            display: "flex", alignItems: "center", gap: 8, width: "100%",
+            padding: "6px 12px", background: "none", border: "none", cursor: "pointer",
+            fontSize: 11, fontWeight: 500, color: "#1a1f3c", textAlign: "left",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(43,63,191,0.04)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+        >
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: c.color }} />
+          {c.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SortableJobCard({ id, status }) {
   const job = useJobStore((s) => s.jobs.find((j) => j.id === id));
   const selectedJobId = useJobStore((s) => s.selectedJobId);
   const selectJob = useJobStore((s) => s.selectJob);
+  const [showMenu, setShowMenu] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
 
@@ -32,6 +74,7 @@ function SortableJobCard({ id }) {
     opacity: isDragging ? 0.35 : 1,
     cursor: isDragging ? "grabbing" : "grab",
     zIndex: isDragging ? 100 : "auto",
+    position: "relative",
   };
 
   if (!job) return null;
@@ -39,6 +82,19 @@ function SortableJobCard({ id }) {
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} onClick={() => selectJob(id)}>
       <JobCard job={job} isSelected={selectedJobId === id} />
+      <button
+        data-testid={`card-menu-${id}`}
+        onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+        style={{
+          position: "absolute", top: 8, right: 8, background: "rgba(255,255,255,0.80)",
+          border: "none", borderRadius: 4, cursor: "pointer", padding: "2px 3px",
+          color: "#8892b0", opacity: 0, transition: "opacity 0.15s",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+      >
+        <MoreHorizontal size={12} />
+      </button>
+      {showMenu && <CardContextMenu jobId={id} currentStatus={status} onClose={() => setShowMenu(false)} />}
     </div>
   );
 }
@@ -53,8 +109,8 @@ function DroppableColumn({ column, jobIds }) {
       style={{
         width: 215, flexShrink: 0, display: "flex", flexDirection: "column",
         transition: "background 0.2s", borderRadius: 12,
-        background: isOver ? "rgba(43,63,191,0.04)" : "transparent",
-        minHeight: 0, height: "100%",
+        background: isOver ? "rgba(43,63,191,0.06)" : "transparent",
+        minHeight: 0, height: "100%", padding: "0 4px",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 4px 12px", flexShrink: 0 }}>
@@ -66,10 +122,10 @@ function DroppableColumn({ column, jobIds }) {
           {jobIds.length}
         </span>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, overflowY: "auto", paddingRight: 2, paddingBottom: 20, minHeight: 80 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, overflowY: "auto", paddingRight: 2, paddingBottom: 20, minHeight: "100%" }}>
         <SortableContext items={jobIds} strategy={verticalListSortingStrategy}>
           {jobIds.map((id) => (
-            <SortableJobCard key={id} id={id} />
+            <SortableJobCard key={id} id={id} status={column.id} />
           ))}
         </SortableContext>
       </div>
@@ -93,7 +149,7 @@ export default function KanbanBoard() {
   const columns = dragColumns || baseColumns;
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
   const findContainer = useCallback(
@@ -119,6 +175,7 @@ export default function KanbanBoard() {
     if (!activeContainer || !overContainer || activeContainer === overContainer) return;
 
     setDragColumns((prev) => {
+      if (!prev) return prev;
       const activeItems = [...(prev[activeContainer] || [])];
       const overItems = [...(prev[overContainer] || [])];
       const activeIndex = activeItems.indexOf(active.id);
@@ -134,31 +191,19 @@ export default function KanbanBoard() {
 
   const handleDragEnd = (event) => {
     const { active, over } = event;
+    const currentDragCols = dragColumns;
     setActiveId(null);
     setDragColumns(null);
-    if (!over) return;
+    if (!over || !currentDragCols) return;
 
-    const activeContainer = findContainer(active.id);
-    let overContainer = findContainer(over.id);
-    if (!overContainer && COLUMNS.some((c) => c.id === over.id)) overContainer = over.id;
-    if (!activeContainer || !overContainer) return;
-
-    if (activeContainer === overContainer) {
-      const items = columns[activeContainer];
-      const oldIndex = items.indexOf(active.id);
-      const newIndex = items.indexOf(over.id);
-      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-        setDragColumns((prev) => ({
-          ...prev,
-          [activeContainer]: arrayMove(prev[activeContainer], oldIndex, newIndex),
-        }));
-      }
-    }
+    const activeContainer = (() => {
+      if (currentDragCols[active.id]) return active.id;
+      return Object.keys(currentDragCols).find((key) => currentDragCols[key].includes(active.id));
+    })();
 
     const job = jobs.find((j) => j.id === active.id);
-    const finalContainer = findContainer(active.id);
-    if (job && finalContainer && job.status !== finalContainer) {
-      moveJob(active.id, finalContainer);
+    if (job && activeContainer && job.status !== activeContainer) {
+      moveJob(active.id, activeContainer);
     }
   };
 
@@ -167,7 +212,7 @@ export default function KanbanBoard() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={rectIntersection}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -175,7 +220,7 @@ export default function KanbanBoard() {
       <div
         data-testid="kanban-board"
         style={{
-          display: "flex", gap: 14, padding: "20px 24px",
+          display: "flex", gap: 14, padding: "20px 20px",
           overflowX: "auto", overflowY: "hidden",
           height: "100%", alignItems: "flex-start",
         }}

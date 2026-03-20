@@ -16,7 +16,12 @@ export default function Layout() {
   const [gmailToast, setGmailToast] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => { fetchJobs(); }, [fetchJobs]);
+  useEffect(() => {
+    fetchJobs();
+    // Recheck sponsorship for any jobs missing badges (run once on load)
+    api.recheckAllSponsorship().then(() => fetchJobs()).catch(() => {});
+    // eslint-disable-next-line
+  }, []);
 
   // Handle ?gmail=connected or ?gmail=error after OAuth redirect
   useEffect(() => {

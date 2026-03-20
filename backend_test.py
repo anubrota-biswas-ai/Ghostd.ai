@@ -7,7 +7,7 @@ from datetime import datetime
 class JobflowAPITester:
     def __init__(self):
         self.base_url = "https://job-tracker-ai-9.preview.emergentagent.com/api"
-        self.session_token = "test_session_1774008829896"  # From MongoDB creation
+        self.session_token = "test_session_1774033499812"  # From MongoDB creation
         self.headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.session_token}'
@@ -578,6 +578,127 @@ Phone: (555) 987-6543"""
             self.log_test("POST /gmail/disconnect", False, None, str(e))
             return False
 
+    # ===== NEW FEATURES TESTING =====
+    def test_company_profile_social_links(self):
+        """Test PUT /api/jobs/{job_id}/company-profile accepts new social media fields"""
+        if not hasattr(self, 'deloitte_job_id') or not self.deloitte_job_id:
+            # Create a test job first
+            job_data = {
+                "title": "Test Engineer",
+                "company": "TestCorp",
+                "location": "Remote",
+                "status": "applied"
+            }
+            response = requests.post(f"{self.base_url}/jobs", headers=self.headers, json=job_data, timeout=10)
+            if response.status_code == 200:
+                self.test_job_id = response.json().get('id')
+            else:
+                print("❌ Failed to create test job for social links test")
+                return False
+        else:
+            self.test_job_id = self.deloitte_job_id
+
+        # Test new social media fields
+        profile_data = {
+            "linkedin_url": "https://linkedin.com/company/testcorp",
+            "instagram_url": "https://instagram.com/testcorp",
+            "youtube_url": "https://youtube.com/c/testcorp", 
+            "tiktok_url": "https://tiktok.com/@testcorp",
+            "website": "https://testcorp.com",
+            "notes": "Test notes for company profile"
+        }
+        try:
+            response = requests.put(
+                f"{self.base_url}/jobs/{self.test_job_id}/company-profile", 
+                headers=self.headers, 
+                json=profile_data, 
+                timeout=10
+            )
+            success = response.status_code == 200
+            if success:
+                print(f"   ✅ Social media fields accepted: {list(profile_data.keys())}")
+            self.log_test("PUT /jobs/{id}/company-profile (social links)", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("PUT /jobs/{id}/company-profile (social links)", False, None, str(e))
+            return False
+
+    def test_sponsorship_recheck_all(self):
+        """Test POST /api/sponsorship/recheck-all endpoint"""
+        try:
+            response = requests.post(f"{self.base_url}/sponsorship/recheck-all", headers=self.headers, timeout=30)
+            success = response.status_code == 200
+            if success:
+                result = response.json()
+                checked = result.get('checked', 0)
+                updated = result.get('updated', 0)
+                success = 'checked' in result and 'updated' in result
+                print(f"   ✅ Rechecked {checked} jobs, updated {updated}")
+            self.log_test("POST /sponsorship/recheck-all", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("POST /sponsorship/recheck-all", False, None, str(e))
+            return False
+
+    def test_sponsorship_response_format(self):
+        """Test sponsorship check includes matched_name for both found and not_found"""
+        try:
+            # Test with Deloitte (should be found)
+            response1 = requests.get(f"{self.base_url}/sponsorship/check?company=Deloitte", headers=self.headers, timeout=10)
+            success1 = response1.status_code == 200
+            if success1:
+                data1 = response1.json()
+                has_matched_name = 'matched_name' in data1
+                print(f"   ✅ Deloitte response has matched_name: {has_matched_name}, value: {data1.get('matched_name', 'N/A')}")
+                success1 = has_matched_name
+
+            # Test with unknown company (should be not_found but still have matched_name)
+            response2 = requests.get(f"{self.base_url}/sponsorship/check?company=RandomUnknownCorp123", headers=self.headers, timeout=10)
+            success2 = response2.status_code == 200
+            if success2:
+                data2 = response2.json()
+                has_matched_name = 'matched_name' in data2
+                print(f"   ✅ Unknown company response has matched_name: {has_matched_name}, value: {data2.get('matched_name', 'N/A')}")
+                success2 = has_matched_name
+
+            success = success1 and success2
+            self.log_test("Sponsorship response format (matched_name)", success, 200 if success else 400)
+            return success
+        except Exception as e:
+            self.log_test("Sponsorship response format (matched_name)", False, None, str(e))
+            return False
+
+    def test_manual_sponsorship_override(self):
+        """Test manual sponsorship override via PUT /api/jobs/{id}"""
+        if not hasattr(self, 'test_job_id') or not self.test_job_id:
+            print("❌ Manual sponsorship override test - No test job ID")
+            return False
+
+        # Test manual override
+        override_data = {
+            "sponsorship": {
+                "status": "found",
+                "matched_name": "Manual Override Corp",
+                "confidence": 1.0,
+                "manual_override": True
+            }
+        }
+        try:
+            response = requests.put(
+                f"{self.base_url}/jobs/{self.test_job_id}", 
+                headers=self.headers, 
+                json=override_data, 
+                timeout=10
+            )
+            success = response.status_code == 200
+            if success:
+                print(f"   ✅ Manual sponsorship override accepted")
+            self.log_test("PUT /jobs/{id} (manual sponsorship)", success, response.status_code, response.text if not success else None)
+            return success
+        except Exception as e:
+            self.log_test("PUT /jobs/{id} (manual sponsorship)", False, None, str(e))
+            return False
+
     # ===== PHASE 2: UK SPONSORSHIP CHECKER =====
     def test_sponsorship_status(self):
         """Test GET /api/sponsorship/status - check if 140K+ records loaded"""
@@ -925,7 +1046,7 @@ Phone: (555) 987-6543"""
 
     def run_all_tests(self):
         """Run all API tests including new Phase 2-6 features"""
-        print("🚀 Starting Jobflow v2.0 API Tests (6 Phases)")
+        print("🚀 Starting Jobflow v2.0 API Tests (6 Phases + New Features)")
         print(f"Base URL: {self.base_url}")
         print(f"Session Token: {self.session_token[:20]}...")
         print("=" * 60)
@@ -934,6 +1055,14 @@ Phone: (555) 987-6543"""
         if not self.test_auth_me():
             print("❌ Auth failed, stopping tests")
             return False
+
+        # ===== NEW FEATURES TESTING =====
+        print("\n🆕 NEW FEATURES: Social Links, Sponsorship Updates, Manual Override")
+        print("-" * 50)
+        self.test_company_profile_social_links()
+        self.test_sponsorship_recheck_all()
+        self.test_sponsorship_response_format()
+        self.test_manual_sponsorship_override()
 
         # ===== PHASE 2: UK SPONSORSHIP CHECKER =====
         print("\n🇬🇧 PHASE 2: UK Sponsorship Checker (140K+ records)")

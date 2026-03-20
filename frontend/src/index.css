@@ -84,6 +84,9 @@ body {
   box-shadow: 0 6px 24px rgba(43,63,191,0.12) !important;
   transform: translateY(-1px);
 }
+.jf-card:hover .jf-card-menu {
+  opacity: 1 !important;
+}
 .jf-card.selected {
   border-color: rgba(43,63,191,0.40) !important;
   box-shadow: 0 4px 20px rgba(43,63,191,0.15) !important;

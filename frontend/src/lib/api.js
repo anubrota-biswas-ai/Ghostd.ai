@@ -49,6 +49,7 @@ export const api = {
   checkSponsorship: (company) => request('GET', `/sponsorship/check?company=${encodeURIComponent(company)}`),
   refreshSponsors: () => request('POST', '/sponsorship/refresh'),
   sponsorshipStatus: () => request('GET', '/sponsorship/status'),
+  recheckAllSponsorship: () => request('POST', '/sponsorship/recheck-all'),
 
   // Company Profile
   updateCompanyProfile: (jobId, data) => request('PUT', `/jobs/${jobId}/company-profile`, data),

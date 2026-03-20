@@ -55,13 +55,21 @@ export default function JobCard({ job, isSelected }) {
       {job.sponsorship && (
         <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6 }}>
           {job.sponsorship.status === "found" ? (
-            <span data-testid={`sponsorship-badge-${job.id}`} style={{ fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: "rgba(34,197,94,0.12)", color: "#15803D" }}>
+            <span
+              data-testid={`sponsorship-badge-${job.id}`}
+              title={`Matched to: ${job.sponsorship.matched_name || "—"} — ${Math.round((job.sponsorship.confidence || 0) * 100)}% confidence`}
+              style={{ fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: "rgba(34,197,94,0.12)", color: "#15803D", cursor: "help" }}
+            >
               Sponsors visas
             </span>
           ) : job.sponsorship.status === "not_found" ? (
-            <span data-testid={`sponsorship-badge-${job.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: "rgba(245,158,11,0.12)", color: "#B45309" }}>
-              Not found on register
-              <span title="This company was not found on the UK Home Office Register of Licensed Sponsors. This does not necessarily mean they cannot sponsor — some companies use umbrella sponsors or haven't registered yet." style={{ cursor: "help" }}>
+            <span
+              data-testid={`sponsorship-badge-${job.id}`}
+              title={job.sponsorship.matched_name && job.sponsorship.confidence > 0.3 ? `Best match: ${job.sponsorship.matched_name} — ${Math.round((job.sponsorship.confidence || 0) * 100)}% confidence` : "No close match found on register"}
+              style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: "rgba(245,158,11,0.12)", color: "#B45309", cursor: "help" }}
+            >
+              No sponsor licence
+              <span title="Based on the UK Home Office Register of Licensed Sponsors. This may not be definitive." style={{ cursor: "help" }}>
                 <Info size={9} />
               </span>
             </span>
@@ -70,6 +78,7 @@ export default function JobCard({ job, isSelected }) {
               Sponsorship unknown
             </span>
           )}
+          {job.sponsorship.manual_override && <span style={{ fontSize: 7, fontWeight: 600, color: "rgba(26,31,60,0.3)" }}>MANUAL</span>}
         </div>
       )}
 
