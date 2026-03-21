@@ -45,6 +45,7 @@ class JobCreate(BaseModel):
     date_applied: Optional[str] = None
     jd_raw_text: str = ""
     notes: str = ""
+    company_profile: Optional[dict] = None
 
 class JobUpdate(BaseModel):
     title: Optional[str] = None
@@ -213,10 +214,12 @@ async def create_job(job_data: JobCreate, request: Request):
 
     doc = {
         "id": job_id, "user_id": user["user_id"],
-        **job_data.model_dump(),
+        **{k: v for k, v in job_data.model_dump().items() if k != "company_profile"},
         "match_score": None, "skills_score": None,
         "experience_score": None, "language_score": None,
-        "jd_parsed": None, "company_profile": {}, "sponsorship": None,
+        "jd_parsed": None,
+        "company_profile": {k: v for k, v in (job_data.company_profile or {}).items() if v} or {},
+        "sponsorship": None,
         "created_at": now, "updated_at": now,
     }
     await db.job_applications.insert_one(doc)

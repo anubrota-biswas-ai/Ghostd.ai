@@ -22,6 +22,7 @@ export default function AddJobModal({ isOpen, onClose }) {
     url: '', salary_min: '', salary_max: '', currency: 'USD',
     status: 'wishlist', date_applied: '', jd_raw_text: '', notes: '',
   });
+  const [companyProfile, setCompanyProfile] = useState({});
 
   const addJob = useJobStore((s) => s.addJob);
 
@@ -46,6 +47,14 @@ export default function AddJobModal({ isOpen, onClose }) {
           currency: parsed.currency || 'USD',
           jd_raw_text: jdText,
         }));
+        // Store extracted company profile fields for saving with the job
+        setCompanyProfile({
+          domain: parsed.domain || '',
+          website: parsed.website || '',
+          linkedin_url: parsed.linkedin_url || '',
+          industry: parsed.industry || '',
+          company_size: parsed.company_size || '',
+        });
         setTab('manual');
       }
     } catch (e) {
@@ -63,6 +72,7 @@ export default function AddJobModal({ isOpen, onClose }) {
         salary_min: form.salary_min ? Number(form.salary_min) : null,
         salary_max: form.salary_max ? Number(form.salary_max) : null,
         date_applied: form.date_applied || null,
+        company_profile: companyProfile,
       });
       onClose();
       resetForm();
@@ -74,6 +84,7 @@ export default function AddJobModal({ isOpen, onClose }) {
 
   const resetForm = () => {
     setForm({ title: '', company: '', location: '', remote: false, url: '', salary_min: '', salary_max: '', currency: 'USD', status: 'wishlist', date_applied: '', jd_raw_text: '', notes: '' });
+    setCompanyProfile({});
     setJdText('');
     setTab('paste');
   };
