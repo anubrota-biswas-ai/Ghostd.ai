@@ -27,15 +27,16 @@ function ScoreRing({ score, originalScore, size = 120 }) {
 /* ─── Suggestion Popover ─── */
 function SuggestionPopover({ suggestion, onAccept, onReject, onClose, style }) {
   const s = suggestion;
+  const type = s.type || 'REPHRASE';
   const typeColors = { REPHRASE: { bg: 'rgba(43,63,191,0.08)', color: '#2B3FBF' }, ADD_SKILL: { bg: 'rgba(34,197,94,0.08)', color: '#16A34A' }, ADD_KEYWORD: { bg: 'rgba(34,197,94,0.08)', color: '#16A34A' }, REMOVE: { bg: 'rgba(239,68,68,0.08)', color: '#DC2626' } };
-  const tc = typeColors[s.type] || typeColors.REPHRASE;
+  const tc = typeColors[type] || typeColors.REPHRASE;
   return (
     <div data-testid={`popover-${s.id}`} onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', zIndex: 60, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(16px)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.90)', boxShadow: '0 8px 30px rgba(43,63,191,0.15)', padding: 16, maxWidth: 360, width: 'max-content', ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
         <Sparkles size={11} style={{ color: '#2B3FBF' }} />
-        <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 8px', borderRadius: 10, background: tc.bg, color: tc.color }}>{s.type.replace('_', ' ')}</span>
+        <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 8px', borderRadius: 10, background: tc.bg, color: tc.color }}>{type.replace('_', ' ')}</span>
         {s.keyword && <span style={{ fontSize: 10, fontWeight: 500, padding: '1px 8px', borderRadius: 10, background: 'rgba(43,63,191,0.06)', color: 'rgba(43,63,191,0.6)' }}>{s.keyword}</span>}
-        <span style={{ fontSize: 9, color: 'rgba(26,31,60,0.3)', marginLeft: 'auto' }}>+{s.score_impact} pts</span>
+        <span style={{ fontSize: 9, color: 'rgba(26,31,60,0.3)', marginLeft: 'auto' }}>+{s.score_impact || 0} pts</span>
       </div>
       {s.original && <div style={{ background: 'rgba(239,68,68,0.04)', padding: '6px 10px', borderRadius: 6, marginBottom: 6 }}><span style={{ fontSize: 11, color: 'rgba(26,31,60,0.45)', textDecoration: 'line-through' }}>{s.original}</span></div>}
       {s.rewrite && <div style={{ background: 'rgba(34,197,94,0.06)', padding: '6px 10px', borderRadius: 6, borderLeft: '3px solid rgba(34,197,94,0.5)', marginBottom: 10 }}><span style={{ fontSize: 11, color: '#1a1f3c' }}>{s.rewrite}</span></div>}
@@ -204,9 +205,9 @@ export default function ATSCheckerPage() {
 
   const buildOptimisedText = () => {
     let text = cvText;
-    suggestions.filter((s) => s.status === 'accepted' && s.original).forEach((s) => { text = text.replace(s.original, s.rewrite); });
-    const addSkills = suggestions.filter((s) => s.status === 'accepted' && s.type === 'ADD_SKILL');
-    if (addSkills.length > 0) text += '\n' + addSkills.map((s) => s.rewrite).join('\n');
+    suggestions.filter((s) => s.status === 'accepted' && s.original).forEach((s) => { text = text.replace(s.original, s.rewrite || ''); });
+    const addSkills = suggestions.filter((s) => s.status === 'accepted' && (s.type || '') === 'ADD_SKILL');
+    if (addSkills.length > 0) text += '\n' + addSkills.map((s) => s.rewrite || '').join('\n');
     return text;
   };
 
@@ -362,22 +363,26 @@ export default function ATSCheckerPage() {
 
   /* ─── INLINE RESUME with highlights ─── */
   const InlineResumeView = () => {
-    const inlineSuggestions = suggestions.filter((s) => s.original && findInText(cvText, s.original) !== -1);
-    const fallbackSuggestions = suggestions.filter((s) => s.original && findInText(cvText, s.original) === -1);
-    const addSkills = suggestions.filter((s) => s.type === 'ADD_SKILL');
+    // Treat any suggestion with falsy original as ADD_SKILL (goes to fallback or add section)
+    const hasValidOriginal = (s) => !!(s.original && typeof s.original === 'string' && s.original.trim());
+    const inlineSuggestions = suggestions.filter((s) => hasValidOriginal(s) && findInText(cvText, s.original) !== -1);
+    const fallbackSuggestions = suggestions.filter((s) => hasValidOriginal(s) && findInText(cvText, s.original) === -1);
+    const addSkills = suggestions.filter((s) => (s.type || '') === 'ADD_SKILL' || !hasValidOriginal(s));
 
     // Build annotated text
     const buildAnnotated = () => {
       let segments = [{ text: cvText, suggestionId: null }];
       inlineSuggestions.forEach((sug) => {
+        const orig = sug.original || '';
+        if (!orig) return;
         const newSegments = [];
         segments.forEach((seg) => {
           if (seg.suggestionId) { newSegments.push(seg); return; }
-          const idx = seg.text.indexOf(sug.original);
+          const idx = seg.text.indexOf(orig);
           if (idx === -1) { newSegments.push(seg); return; }
           if (idx > 0) newSegments.push({ text: seg.text.slice(0, idx), suggestionId: null });
-          newSegments.push({ text: sug.original, suggestionId: sug.id });
-          const after = seg.text.slice(idx + sug.original.length);
+          newSegments.push({ text: orig, suggestionId: sug.id });
+          const after = seg.text.slice(idx + orig.length);
           if (after) newSegments.push({ text: after, suggestionId: null });
         });
         segments = newSegments;
@@ -388,12 +393,13 @@ export default function ATSCheckerPage() {
     const segments = buildAnnotated();
 
     const getHighlightStyle = (sug) => {
+      const type = sug.type || '';
       if (sug.status === 'accepted') return { background: 'rgba(34,197,94,0.12)', borderBottom: '2px solid #16A34A', cursor: 'pointer', borderRadius: 2, padding: '0 2px' };
       if (sug.status === 'rejected') return { opacity: 0.3, borderRadius: 2, padding: '0 2px' };
-      if (sug.type === 'REPHRASE') return { background: 'rgba(43,63,191,0.08)', borderBottom: '2px solid #2B3FBF', cursor: 'pointer', borderRadius: 2, padding: '0 2px' };
-      if (sug.type === 'ADD_KEYWORD') return { background: 'rgba(34,197,94,0.08)', fontWeight: 600, cursor: 'pointer', borderRadius: 2, padding: '0 2px' };
-      if (sug.type === 'REMOVE') return { background: 'rgba(239,68,68,0.08)', textDecoration: 'line-through', cursor: 'pointer', borderRadius: 2, padding: '0 2px' };
-      return {};
+      if (type === 'REPHRASE') return { background: 'rgba(43,63,191,0.08)', borderBottom: '2px solid #2B3FBF', cursor: 'pointer', borderRadius: 2, padding: '0 2px' };
+      if (type === 'ADD_KEYWORD') return { background: 'rgba(34,197,94,0.08)', fontWeight: 600, cursor: 'pointer', borderRadius: 2, padding: '0 2px' };
+      if (type === 'REMOVE') return { background: 'rgba(239,68,68,0.08)', textDecoration: 'line-through', cursor: 'pointer', borderRadius: 2, padding: '0 2px' };
+      return { background: 'rgba(43,63,191,0.06)', cursor: 'pointer', borderRadius: 2, padding: '0 2px' };
     };
 
     return (
@@ -422,7 +428,7 @@ export default function ATSCheckerPage() {
               if (!sug) return <span key={i}>{seg.text}</span>;
               return (
                 <span key={i} data-testid={`highlight-${sug.id}`} onClick={(e) => { e.stopPropagation(); setActivePopover(activePopover === sug.id ? null : sug.id); }} style={{ ...getHighlightStyle(sug), position: 'relative', display: 'inline' }}>
-                  {sug.status === 'accepted' ? sug.rewrite : seg.text}
+                  {sug.status === 'accepted' ? (sug.rewrite || seg.text) : seg.text}
                   {sug.status === 'accepted' && <Check size={10} style={{ color: '#16A34A', marginLeft: 2, verticalAlign: 'middle' }} />}
                   {activePopover === sug.id && sug.status === 'pending' && (
                     <SuggestionPopover suggestion={sug} onAccept={() => acceptSuggestion(sug.id)} onReject={() => rejectSuggestion(sug.id)} onClose={() => setActivePopover(null)} style={{ top: '100%', left: 0, marginTop: 4 }} />
@@ -436,7 +442,7 @@ export default function ATSCheckerPage() {
               <div style={{ marginTop: 16, padding: '8px 12px', borderRadius: 8, border: '2px dashed rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.04)' }}>
                 <span style={{ fontSize: 10, fontWeight: 600, color: '#16A34A' }}>+ Add: </span>
                 {addSkills.filter((s) => s.status === 'pending').map((s) => (
-                  <span key={s.id} onClick={() => acceptSuggestion(s.id)} style={{ fontSize: 11, color: '#16A34A', cursor: 'pointer', marginRight: 8 }}>{s.rewrite}</span>
+                  <span key={s.id} onClick={() => acceptSuggestion(s.id)} style={{ fontSize: 11, color: '#16A34A', cursor: 'pointer', marginRight: 8 }}>{s.rewrite || s.keyword || 'suggestion'}</span>
                 ))}
               </div>
             )}
@@ -449,12 +455,12 @@ export default function ATSCheckerPage() {
               {fallbackSuggestions.filter((s) => s.status === 'pending').map((s) => (
                 <div key={s.id} style={{ background: 'rgba(255,255,255,0.70)', borderRadius: 10, padding: 12, marginBottom: 8, border: '1px solid rgba(255,255,255,0.90)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                    <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 8, background: 'rgba(43,63,191,0.08)', color: '#2B3FBF' }}>{s.type.replace('_', ' ')}</span>
+                    <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 8, background: 'rgba(43,63,191,0.08)', color: '#2B3FBF' }}>{(s.type || 'REPHRASE').replace('_', ' ')}</span>
                     {s.keyword && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(43,63,191,0.04)', color: 'rgba(43,63,191,0.5)' }}>{s.keyword}</span>}
-                    <span style={{ fontSize: 9, color: 'rgba(26,31,60,0.3)', marginLeft: 'auto' }}>+{s.score_impact} pts</span>
+                    <span style={{ fontSize: 9, color: 'rgba(26,31,60,0.3)', marginLeft: 'auto' }}>+{s.score_impact || 0} pts</span>
                   </div>
                   {s.original && <div style={{ fontSize: 11, color: 'rgba(26,31,60,0.4)', textDecoration: 'line-through', marginBottom: 4 }}>{s.original}</div>}
-                  <div style={{ fontSize: 11, color: '#1a1f3c', marginBottom: 8 }}>{s.rewrite}</div>
+                  <div style={{ fontSize: 11, color: '#1a1f3c', marginBottom: 8 }}>{s.rewrite || ''}</div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button onClick={() => acceptSuggestion(s.id)} style={{ padding: '3px 10px', borderRadius: 6, background: '#2B3FBF', color: '#fff', border: 'none', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>Apply</button>
                     <button onClick={() => rejectSuggestion(s.id)} style={{ padding: '3px 10px', borderRadius: 6, background: 'none', color: '#8892b0', border: '1px solid rgba(43,63,191,0.12)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>Skip</button>
@@ -484,7 +490,7 @@ export default function ATSCheckerPage() {
             <div style={{ fontSize: 12, color: '#444', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
               {cvText.split('\n').map((line, i) => {
                 const match = suggestions.find((s) => s.status === 'accepted' && s.original && line.includes(s.original));
-                if (match) return <span key={i} style={isOrig ? { background: 'rgba(239,68,68,0.10)', color: '#991B1B', textDecoration: 'line-through' } : { background: 'rgba(34,197,94,0.12)', color: '#166534', fontWeight: 500 }}>{isOrig ? line : line.replace(match.original, match.rewrite)}{'\n'}</span>;
+                if (match) return <span key={i} style={isOrig ? { background: 'rgba(239,68,68,0.10)', color: '#991B1B', textDecoration: 'line-through' } : { background: 'rgba(34,197,94,0.12)', color: '#166534', fontWeight: 500 }}>{isOrig ? line : line.replace(match.original, match.rewrite || '')}{'\n'}</span>;
                 return <span key={i}>{line}{'\n'}</span>;
               })}
             </div>
