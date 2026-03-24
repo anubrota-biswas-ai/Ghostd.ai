@@ -585,36 +585,104 @@ Return ONLY the JSON object."""
     except Exception:
         return {"raw_response": response, "error": "Could not parse"}
 
+ATS_CONTEXTS = {
+    "greenhouse": "The company likely uses Greenhouse ATS. Greenhouse is keyword-heavy — keyword frequency matters significantly. Prefers clear section headings.",
+    "workday": "The company likely uses Workday ATS. Workday is STRICT on formatting — requires clear section headings, consistent date formats (MM/YYYY), struggles with tables and multi-column layouts.",
+    "lever": "The company likely uses Lever ATS. Lever is modern and forgiving — handles most formats well. Focus on keyword matching.",
+    "icims": "The company likely uses iCIMS ATS. iCIMS is one of the STRICTEST — needs clean single-column layout, standard headings. Heavily penalises tables and graphics.",
+    "taleo": "The company likely uses Taleo ATS. Taleo is legacy — needs extremely clean formatting, no graphics or tables.",
+    "unknown": "Provide general best-practice advice that works across all major ATS platforms. Err on conservative formatting recommendations.",
+}
+
 @api_router.post("/ai/analyze-cv")
 async def analyze_cv(req: AnalyzeCVRequest, request: Request):
     user = await get_current_user(request)
+
+    # Detect ATS context from linked job
+    ats_context = ATS_CONTEXTS["unknown"]
+    if req.job_id:
+        job_doc = await db.job_applications.find_one({"id": req.job_id, "user_id": user["user_id"]}, {"_id": 0})
+        if job_doc:
+            detected = (job_doc.get("ats_platform") or "").lower()
+            if detected in ATS_CONTEXTS:
+                ats_context = ATS_CONTEXTS[detected]
+
     chat = get_llm()
-    prompt = f"""Analyze this CV against the job description. Return ONLY valid JSON:
+    prompt = f"""You are an expert CV/resume analyzer specialising in UK job applications. You understand how Applicant Tracking Systems parse CVs and how human recruiters evaluate them.
+
+{ats_context}
+
+Analyze the CV against the job description and return ONLY valid JSON:
 {{
-  "overall_score": 0-100,
-  "skills_score": 0-100,
-  "experience_score": 0-100,
-  "language_score": 0-100,
+  "ats_score": <0-100>,
+  "recruiter_score": <0-100>,
+  "overall_score": <0-100, calculated as round(ats_score * 0.55 + recruiter_score * 0.45)>,
+  "skills_score": <0-100>,
+  "experience_score": <0-100>,
+  "language_score": <0-100>,
   "hard_skills": [
-    {{"name": "skill name", "status": "matched" or "missing"}}
+    {{ "name": "skill from JD", "status": "matched" or "missing", "cv_count": <int>, "jd_count": <int> }}
   ],
   "soft_skills": [
-    {{"name": "skill name", "status": "matched" or "missing"}}
+    {{ "name": "soft skill", "status": "matched" or "missing", "cv_count": <int>, "jd_count": <int> }}
+  ],
+  "searchability": [
+    {{ "label": "item name", "status": "present" or "missing" or "weak", "tip": "brief actionable tip" }}
+  ],
+  "recruiter_tips": [
+    {{ "label": "tip title", "detail": "specific advice for this exact role, not generic", "priority": "high" or "medium" or "low" }}
   ],
   "suggestions": [
     {{
-      "id": "1",
-      "original": "original text from CV",
-      "rewrite": "improved version targeting this JD",
-      "category": "skills" or "experience" or "language",
-      "impact": "high" or "medium" or "low"
+      "id": "unique string",
+      "type": "REPHRASE" or "ADD_SKILL" or "ADD_KEYWORD" or "REMOVE",
+      "keyword": "target keyword this suggestion addresses",
+      "original": "EXACT verbatim substring from CV to replace — must be character-perfect copy. Empty string for ADD_SKILL.",
+      "rewrite": "improved replacement text",
+      "category": "summary" or "skills" or "experience" or "language",
+      "impact": "high" or "medium" or "low",
+      "score_impact": <integer 1-8, how many points this adds to overall score when accepted>
     }}
   ],
-  "gaps": ["gap description 1", "gap description 2"],
-  "summary": "2-3 sentence analysis summary"
+  "summary": "2-3 sentence analysis"
 }}
 
-Provide 4-8 hard skills, 3-5 soft skills, and 2-4 suggestions.
+SCORING CALIBRATION — follow strictly:
+- 40 = covers fewer than half the JD requirements
+- 55-65 = decent match with gaps
+- 70-80 = strong match
+- Above 85 only if CV covers nearly every requirement with quantified achievements
+- Most CVs should score between 35-65. Do NOT inflate scores.
+- ats_score: keyword presence/frequency, section headings, formatting, date consistency
+- recruiter_score: impact language, quantified achievements, relevance, readability, compelling narrative
+- Hard skills weighted 3x more than soft skills in ats_score
+
+SKILL EXTRACTION:
+- Extract 8-12 hard skills from JD, check each against CV, count exact occurrences in both
+- Extract 3-5 soft skills from JD
+- For each skill show cv_count (times mentioned in CV) and jd_count (times mentioned in JD)
+
+SEARCHABILITY — check ALL of these:
+- Contact email (present/missing)
+- Phone number (present/missing)
+- LinkedIn URL (present/missing)
+- Portfolio or GitHub URL (present/missing for technical roles)
+- Clear section headings like Summary, Experience, Skills, Education (present/weak/missing)
+- CV length appropriateness (1 page for <5 years experience, 2 pages for 5+)
+- Consistent date formatting throughout
+- No tables, columns, or graphics that break ATS parsing
+
+RECRUITER TIPS:
+- Provide 3-5 tips SPECIFIC to this exact role and company — not generic career advice
+- Each tip should reference something concrete from the CV or JD
+
+SUGGESTIONS — critical rules:
+- Provide 10-15 suggestions mixing all types (REPHRASE, ADD_SKILL, ADD_KEYWORD, REMOVE)
+- For REPHRASE, ADD_KEYWORD, REMOVE: the "original" field MUST be a character-perfect verbatim substring copied from the CV including exact punctuation, spacing, and capitalisation
+- For ADD_SKILL: "original" is an empty string, "rewrite" is the text to add
+- Each suggestion must have score_impact between 1-8
+- The total score_impact of ALL suggestions should roughly equal (100 - overall_score) so accepting all gets close to 100
+- Prioritise high-impact suggestions first
 
 CV:
 {req.cv_text}
@@ -622,7 +690,8 @@ CV:
 Job Description:
 {req.jd_text}
 
-Return ONLY the JSON object."""
+Return ONLY the JSON object. No markdown backticks, no preamble."""
+
     msg = UserMessage(text=prompt)
     response = await chat.send_message(msg)
     try:
@@ -1000,12 +1069,16 @@ async def save_ats_results(request: Request):
     result_id = f"ats_{uuid.uuid4().hex[:12]}"
     doc = {
         "id": result_id, "user_id": user["user_id"], "job_id": job_id,
-        "overall_score": body.get("overall_score"), "skills_score": body.get("skills_score"),
+        "overall_score": body.get("overall_score"), "ats_score": body.get("ats_score"),
+        "recruiter_score": body.get("recruiter_score"),
+        "skills_score": body.get("skills_score"),
         "experience_score": body.get("experience_score"), "language_score": body.get("language_score"),
         "hard_skills": body.get("hard_skills", []), "soft_skills": body.get("soft_skills", []),
+        "searchability": body.get("searchability", []), "recruiter_tips": body.get("recruiter_tips", []),
         "suggestions": body.get("suggestions", []), "accepted_suggestions": body.get("accepted_suggestions", []),
         "optimised_cv_text": body.get("optimised_cv_text", ""),
         "original_cv_text": body.get("original_cv_text", ""), "jd_text": body.get("jd_text", ""),
+        "summary": body.get("summary", ""),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if job_id:
