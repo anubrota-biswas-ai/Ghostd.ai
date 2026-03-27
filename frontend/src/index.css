@@ -115,6 +115,16 @@ body {
   to { transform: translateY(0); opacity: 1; }
 }
 
+@keyframes scoreBump {
+  0% { transform: scale(1); color: #1a1f3c; }
+  50% { transform: scale(1.15); color: #16A34A; }
+  100% { transform: scale(1); color: #1a1f3c; }
+}
+
+.jf-score-bump {
+  animation: scoreBump 0.4s ease-out;
+}
+
 .jf-spinner {
   width: 32px;
   height: 32px;
