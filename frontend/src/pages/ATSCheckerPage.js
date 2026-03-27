@@ -103,7 +103,8 @@ export default function ATSCheckerPage() {
         const ats = saved.ats_score || 0;
         const rec = saved.recruiter_score || 0;
         setLiveAts(ats); setLiveRecruiter(rec);
-        setOriginalScore(saved.overall_score || Math.round(ats * 0.55 + rec * 0.45));
+        const derived = Math.round(ats * 0.55 + rec * 0.45);
+        setOriginalScore(derived);
         setOriginalAts(ats); setOriginalRecruiter(rec);
         setSuggestions((saved.suggestions || []).map((s) => ({ ...s, status: (saved.accepted_suggestions || []).includes(s.id) ? 'accepted' : 'pending' })));
         if (saved.original_cv_text) setCvText(saved.original_cv_text);
@@ -141,7 +142,8 @@ export default function ATSCheckerPage() {
       setResults(data);
       const ats = data.ats_score || 0; const rec = data.recruiter_score || 0;
       setLiveAts(ats); setLiveRecruiter(rec);
-      setOriginalScore(data.overall_score || Math.round(ats * 0.55 + rec * 0.45));
+      const derived = Math.round(ats * 0.55 + rec * 0.45);
+      setOriginalScore(derived);
       setOriginalAts(ats); setOriginalRecruiter(rec);
       setSuggestions((data.suggestions || []).map((s) => ({ ...s, status: 'pending' })));
       setHistory([]); setHistoryIdx(-1);
