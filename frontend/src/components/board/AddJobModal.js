@@ -91,14 +91,14 @@ export default function AddJobModal({ isOpen, onClose }) {
 
   const inputStyle = {
     width: '100%', padding: '8px 12px', fontSize: 13,
-    border: '1px solid rgba(43,63,191,0.12)', borderRadius: 8,
-    background: 'rgba(255,255,255,0.60)', outline: 'none',
-    color: '#1a1f3c', fontFamily: 'Inter, sans-serif',
+    border: '1px solid #E5E0D8', borderRadius: 8,
+    background: '#FFFFFF', outline: 'none',
+    color: '#1C1917', fontFamily: "'DM Sans', sans-serif",
   };
 
   const labelStyle = {
     fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-    letterSpacing: '0.08em', color: 'rgba(43,63,191,0.5)',
+    letterSpacing: '0.08em', color: '#9B8B7A',
     marginBottom: 4, display: 'block',
   };
 
@@ -117,23 +117,23 @@ export default function AddJobModal({ isOpen, onClose }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(16px)',
-          borderRadius: 16, border: '1px solid rgba(255,255,255,0.95)',
-          boxShadow: '0 8px 40px rgba(43,63,191,0.15)',
+          borderRadius: 10, border: '1px solid #E5E0D8',
+          boxShadow: '0 8px 40px #E5E0D8',
           maxWidth: 540, width: '100%', maxHeight: '85vh', overflow: 'auto', padding: 24,
         }}
       >
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 300, color: '#1a1f3c', letterSpacing: '-0.03em' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 300, color: '#1C1917', letterSpacing: '-0.03em' }}>
             Add Application
           </h2>
-          <button data-testid="close-modal-btn" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8892b0', padding: 4 }}>
+          <button data-testid="close-modal-btn" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9B8B7A', padding: 4 }}>
             <X size={18} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid rgba(43,63,191,0.07)' }}>
+        <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid #E5E0D8' }}>
           {[['paste', 'Paste JD', Sparkles], ['manual', 'Manual Entry', FileText]].map(([id, label, Icon]) => (
             <button
               key={id}
@@ -142,8 +142,8 @@ export default function AddJobModal({ isOpen, onClose }) {
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 padding: '8px 16px', fontSize: 12, fontWeight: 600,
-                color: tab === id ? '#2B3FBF' : 'rgba(26,31,60,0.35)',
-                borderBottom: tab === id ? '2px solid #2B3FBF' : '2px solid transparent',
+                color: tab === id ? '#C0A882' : '#9B8B7A',
+                borderBottom: tab === id ? '2px solid #C0A882' : '2px solid transparent',
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
@@ -169,7 +169,7 @@ export default function AddJobModal({ isOpen, onClose }) {
               onClick={handleParse}
               disabled={parsing || !jdText.trim()}
               style={{
-                background: 'linear-gradient(135deg, #3B4FD0, #2B3FBF)',
+                background: '#1C1917',
                 color: '#fff', border: 'none', borderRadius: 8,
                 padding: '10px 20px', fontSize: 13, fontWeight: 600,
                 cursor: parsing ? 'wait' : 'pointer', width: '100%', marginTop: 12,
@@ -234,14 +234,14 @@ export default function AddJobModal({ isOpen, onClose }) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input type="checkbox" checked={form.remote} onChange={(e) => updateField('remote', e.target.checked)} />
-              <span style={{ fontSize: 12, color: '#1a1f3c' }}>Remote position</span>
+              <span style={{ fontSize: 12, color: '#1C1917' }}>Remote position</span>
             </div>
             <button
               data-testid="save-job-btn"
               onClick={handleSave}
               disabled={saving || !form.title || !form.company}
               style={{
-                background: 'linear-gradient(135deg, #3B4FD0, #2B3FBF)',
+                background: '#1C1917',
                 color: '#fff', border: 'none', borderRadius: 8,
                 padding: '10px 20px', fontSize: 13, fontWeight: 600,
                 cursor: saving ? 'wait' : 'pointer', width: '100%',

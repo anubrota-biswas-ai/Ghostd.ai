@@ -1,284 +1,93 @@
 import { Info } from "lucide-react";
 
+const STATUS_PILLS = {
+  wishlist: { bg: "#F7F5F0", text: "#9B8B7A", label: "Saved" },
+  applied: { bg: "#F7F5F0", text: "#1C1917", label: "Applied" },
+  interview: { bg: "#F0EDE6", text: "#C0A882", label: "Interview" },
+  in_progress: { bg: "#F0EDE6", text: "#C0A882", label: "In Progress" },
+  offer: { bg: "#EAF2EC", text: "#2D6A4F", label: "Offer" },
+  rejected: { bg: "#F0EDEA", text: "#9B8B7A", label: "Ghosted" },
+};
+
 export default function JobCard({ job, isSelected }) {
-  const hasContacts = job.contacts && job.contacts.length > 0;
+  const isGhosted = job.status === "rejected";
+  const sp = job.sponsorship;
+  const pill = STATUS_PILLS[job.status] || STATUS_PILLS.applied;
 
-  /* Check if follow-up is needed (last activity > 7 days ago) */
-  const needsFollowUp = (() => {
-    if (!job.activity || job.activity.length === 0) return false;
-    const last = new Date(job.activity[job.activity.length - 1].timestamp);
-    return (Date.now() - last) / (1000 * 60 * 60 * 24) >= 7;
-  })();
-
-  /* Match score pill styling */
-  const scorePill = job.matchScore
-    ? job.matchScore >= 80
-      ? { bg: "rgba(34,197,94,0.12)", color: "#15803D" }
-      : job.matchScore >= 60
-      ? { bg: "rgba(251,191,36,0.15)", color: "#B45309" }
-      : { bg: "rgba(239,68,68,0.12)", color: "#B91C1C" }
+  const daysSinceApplied = job.date_applied
+    ? Math.floor((Date.now() - new Date(job.date_applied)) / 86400000)
     : null;
 
   return (
     <div
       data-testid={`job-card-${job.id}`}
-      className={`jf-card${isSelected ? " selected" : ""}`}
+      className={`gd-card${isGhosted ? " gd-ghosted" : ""}`}
       style={{
-        background: "rgba(255,255,255,0.82)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        border: `1px solid ${
-          isSelected ? "rgba(43,63,191,0.40)" : "rgba(255,255,255,0.95)"
-        }`,
-        borderRadius: 14,
-        padding: 16,
-        boxShadow: isSelected
-          ? "0 4px 20px rgba(43,63,191,0.15)"
-          : "0 2px 12px rgba(43,63,191,0.06)",
+        background: "#FFFFFF",
+        border: `1px solid ${isSelected ? "#C0A882" : "#E5E0D8"}`,
+        borderLeft: isSelected ? "2px solid #C0A882" : `1px solid ${isSelected ? "#C0A882" : "#E5E0D8"}`,
+        borderRadius: 10,
+        padding: "14px 16px",
       }}
     >
-      {/* Company label */}
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: "0.07em",
-          color: "rgba(43,63,191,0.5)",
-          marginBottom: 6,
-        }}
-      >
-        {job.company}
-      </div>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+        {/* Company initials avatar */}
+        <div style={{
+          width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+          background: isGhosted ? "#9B8B7A" : "#1C1917",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500, color: "#F7F5F0",
+        }}>
+          {(job.company || "?").substring(0, 2).toUpperCase()}
+        </div>
 
-      {/* Sponsorship badge */}
-      {job.sponsorship && (
-        <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6 }}>
-          {job.sponsorship.status === "found" ? (
-            <span
-              data-testid={`sponsorship-badge-${job.id}`}
-              title={`Matched to: ${job.sponsorship.matched_name || "—"} — ${Math.round((job.sponsorship.confidence || 0) * 100)}% confidence`}
-              style={{ fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: "rgba(34,197,94,0.12)", color: "#15803D", cursor: "help" }}
-            >
-              Sponsors visas
-            </span>
-          ) : job.sponsorship.status === "not_found" ? (
-            <span
-              data-testid={`sponsorship-badge-${job.id}`}
-              title={job.sponsorship.matched_name && job.sponsorship.confidence > 0.3 ? `Best match: ${job.sponsorship.matched_name} — ${Math.round((job.sponsorship.confidence || 0) * 100)}% confidence` : "No close match found on register"}
-              style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: "rgba(245,158,11,0.12)", color: "#B45309", cursor: "help" }}
-            >
-              No sponsor licence
-              <span title="Based on the UK Home Office Register of Licensed Sponsors. This may not be definitive." style={{ cursor: "help" }}>
-                <Info size={9} />
-              </span>
-            </span>
-          ) : (
-            <span style={{ fontSize: 9, fontWeight: 600, padding: "1px 6px", borderRadius: 10, background: "rgba(156,163,175,0.15)", color: "#9CA3AF" }}>
-              Sponsorship unknown
-            </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Title */}
+          <div style={{
+            fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
+            color: isGhosted ? "#9B8B7A" : "#1C1917",
+            lineHeight: 1.3, marginBottom: 2,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {job.title}
+          </div>
+
+          {/* Company + location */}
+          <div style={{
+            fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 400,
+            color: "#9B8B7A", lineHeight: 1.3,
+          }}>
+            {job.company}{job.location ? ` · ${job.location}` : ""}
+          </div>
+
+          {/* Sponsorship badge */}
+          {sp && (
+            <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+              {sp.status === "found" ? (
+                <span title={`Matched to: ${sp.matched_name || "—"} — ${Math.round((sp.confidence || 0) * 100)}%`} style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500, padding: "1px 8px", borderRadius: 20, background: "#EAF2EC", color: "#2D6A4F", cursor: "help" }}>Sponsors visas</span>
+              ) : sp.status === "not_found" ? (
+                <span title={sp.matched_name && sp.confidence > 0.3 ? `Best match: ${sp.matched_name} — ${Math.round((sp.confidence || 0) * 100)}%` : "No close match found"} style={{ fontFamily: "'DM Sans', sans-serif", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 500, padding: "1px 8px", borderRadius: 20, background: "#FDF2F1", color: "#B54A3F", cursor: "help" }}>
+                  No sponsor licence <Info size={9} />
+                </span>
+              ) : null}
+              {sp.manual_override && <span style={{ fontSize: 8, fontWeight: 500, color: "#9B8B7A" }}>MANUAL</span>}
+            </div>
           )}
-          {job.sponsorship.manual_override && <span style={{ fontSize: 7, fontWeight: 600, color: "rgba(26,31,60,0.3)" }}>MANUAL</span>}
-        </div>
-      )}
 
-      {/* Title — weight 300 */}
-      <div
-        style={{
-          fontSize: 15,
-          fontWeight: 300,
-          color: "#1a1f3c",
-          letterSpacing: "-0.02em",
-          lineHeight: 1.3,
-          marginBottom: 10,
-        }}
-      >
-        {job.title}
-      </div>
-
-      {/* Divider */}
-      <div
-        style={{
-          height: 1,
-          background: "rgba(43,63,191,0.07)",
-          marginBottom: 10,
-        }}
-      />
-
-      {/* Salary */}
-      {job.salaryMin && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: 4,
-          }}
-        >
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 400,
-              color: "rgba(26,31,60,0.35)",
-            }}
-          >
-            Salary
-          </span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#1a1f3c" }}>
-            ${(job.salaryMin / 1000).toFixed(0)}k – $
-            {(job.salaryMax / 1000).toFixed(0)}k
-          </span>
-        </div>
-      )}
-
-      {/* Date */}
-      {job.dateApplied && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: 8,
-          }}
-        >
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 400,
-              color: "rgba(26,31,60,0.35)",
-            }}
-          >
-            Applied
-          </span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#1a1f3c" }}>
-            {new Date(job.dateApplied).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            })}
-          </span>
-        </div>
-      )}
-
-      {/* Progress bar */}
-      {job.matchScore != null && (
-        <div style={{ marginBottom: 10 }}>
-          <div
-            style={{
-              height: 3,
-              borderRadius: 2,
-              background: "rgba(43,63,191,0.10)",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                width: `${job.matchScore}%`,
-                background: "linear-gradient(90deg, #6B7FE8, #2B3FBF)",
-                borderRadius: 2,
-                transition: "width 0.3s ease",
-              }}
-            />
+          {/* Bottom row: days + score */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 6 }}>
+            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: "#9B8B7A" }}>
+              {daysSinceApplied != null ? `${daysSinceApplied}d ago` : ""}
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {job.match_score != null && job.match_score > 0 && (
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500, padding: "1px 8px", borderRadius: 20, background: "#F0EDE6", color: "#C0A882" }}>
+                  {job.match_score}%
+                </span>
+              )}
+            </div>
           </div>
         </div>
-      )}
-
-      {/* Divider */}
-      <div
-        style={{
-          height: 1,
-          background: "rgba(43,63,191,0.07)",
-          marginBottom: 10,
-        }}
-      />
-
-      {/* Footer: avatar stack + pill */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        {/* Avatar stack */}
-        <div style={{ display: "flex" }}>
-          {hasContacts ? (
-            job.contacts.slice(0, 3).map((contact, i) => {
-              const gradients = [
-                ["#6B7FE8", "#4F63E0"],
-                ["#5B6FD8", "#3B4FD0"],
-                ["#7B8FF0", "#5B6FD8"],
-              ];
-              const [from, to] = gradients[i % 3];
-              return (
-                <div
-                  key={contact.id}
-                  title={`${contact.name} — ${contact.roleType}`}
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "50%",
-                    background: `linear-gradient(135deg, ${from}, ${to})`,
-                    border: "2px solid rgba(255,255,255,0.9)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#fff",
-                    fontSize: 8,
-                    fontWeight: 600,
-                    marginLeft: i > 0 ? -6 : 0,
-                    position: "relative",
-                    zIndex: 3 - i,
-                  }}
-                >
-                  {contact.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </div>
-              );
-            })
-          ) : (
-            <div
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: "50%",
-                background: "rgba(43,63,191,0.06)",
-                border: "2px solid rgba(255,255,255,0.9)",
-              }}
-            />
-          )}
-        </div>
-
-        {/* Pill */}
-        {scorePill ? (
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              padding: "2px 8px",
-              borderRadius: 20,
-              background: scorePill.bg,
-              color: scorePill.color,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {job.matchScore}% match
-          </div>
-        ) : needsFollowUp ? (
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              padding: "2px 8px",
-              borderRadius: 20,
-              background: "rgba(251,191,36,0.15)",
-              color: "#B45309",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Follow up
-          </div>
-        ) : null}
       </div>
     </div>
   );

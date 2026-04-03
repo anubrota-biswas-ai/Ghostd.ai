@@ -12,7 +12,7 @@ from datetime import datetime
 class JobflowAPITester:
     def __init__(self, base_url="https://job-tracker-ai-9.preview.emergentagent.com"):
         self.base_url = base_url
-        self.session_token = "test_session_1774349508017"  # From auth setup
+        self.session_token = "test_session_1775220370709"  # From auth setup
         self.tests_run = 0
         self.tests_passed = 0
         self.failed_tests = []

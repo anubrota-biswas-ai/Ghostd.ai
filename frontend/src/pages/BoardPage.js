@@ -1,6 +1,5 @@
 import KanbanBoard from "@/components/board/KanbanBoard";
 import useJobStore from "@/store/jobStore";
-import { Inbox } from "lucide-react";
 
 export default function BoardPage() {
   const loading = useJobStore((s) => s.loading);
@@ -8,15 +7,12 @@ export default function BoardPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", gap: 14, padding: "20px 24px", height: "100%" }}>
+      <div style={{ display: "flex", gap: 10, padding: "16px 20px", height: "100%" }}>
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} style={{ width: 215, flexShrink: 0 }}>
-            <div style={{ height: 20, background: "rgba(43,63,191,0.06)", borderRadius: 6, marginBottom: 12, width: 100 }} />
+            <div style={{ height: 16, background: "#E5E0D8", borderRadius: 6, marginBottom: 12, width: 80 }} />
             {Array.from({ length: i < 3 ? 2 : 1 }).map((_, j) => (
-              <div key={j} style={{
-                background: "rgba(255,255,255,0.50)", borderRadius: 14, height: 160, marginBottom: 10,
-                animation: "pulse 1.5s ease-in-out infinite",
-              }} />
+              <div key={j} style={{ background: "#FFFFFF", border: "1px solid #E5E0D8", borderRadius: 10, height: 120, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }} />
             ))}
           </div>
         ))}
@@ -28,13 +24,11 @@ export default function BoardPage() {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: 24 }}>
         <div style={{ textAlign: "center", maxWidth: 320 }}>
-          <Inbox size={48} style={{ color: "rgba(43,63,191,0.2)", marginBottom: 16 }} />
-          <div style={{ fontSize: 18, fontWeight: 300, color: "#1a1f3c", letterSpacing: "-0.03em", marginBottom: 8 }}>
-            No applications yet
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 400, color: "#1C1917", letterSpacing: "-0.02em", marginBottom: 8 }}>
+            Nothing here yet.
           </div>
-          <p style={{ fontSize: 12, color: "#8892b0", lineHeight: 1.5 }}>
-            Click "Add Application" to start tracking your job search.
-            You can paste a job description and let AI fill in the details.
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: "#9B8B7A", lineHeight: 1.6 }}>
+            The market won't fix itself. Add your first application to start tracking.
           </p>
         </div>
       </div>

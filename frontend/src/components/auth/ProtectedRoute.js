@@ -9,33 +9,15 @@ export default function ProtectedRoute({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    if (location.state?.user) {
-      useAuthStore.getState().setUser(location.state.user);
-      return;
-    }
-    checkAuth();
-    // eslint-disable-next-line
-  }, []);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/login');
-    }
-  }, [loading, user, navigate]);
+  useEffect(() => { if (location.state?.user) { useAuthStore.getState().setUser(location.state.user); return; } checkAuth(); }, []);
+  useEffect(() => { if (!loading && !user) navigate('/login'); }, [loading, user, navigate]);
 
   if (loading || !user) {
     return (
-      <div
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          height: '100vh',
-          background: 'linear-gradient(145deg, #E8EDF8 0%, #D4DCF4 100%)',
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#F7F5F0' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1f3c', letterSpacing: '-0.04em', marginBottom: 12 }}>
-            Jobflow
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 400, color: '#1C1917', letterSpacing: '-0.02em', marginBottom: 12 }}>
+            ghostd<span style={{ fontSize: 8, color: '#C0A882', marginLeft: 2 }}>●</span>
           </div>
           <div className="jf-spinner" />
         </div>

@@ -68,17 +68,17 @@ export default function ContactsPage() {
 
   const inputStyle = {
     width: "100%", padding: "8px 12px", fontSize: 13,
-    border: "1px solid rgba(43,63,191,0.12)", borderRadius: 8,
-    background: "rgba(255,255,255,0.60)", outline: "none",
-    color: "#1a1f3c", fontFamily: "Inter, sans-serif",
+    border: "1px solid #E5E0D8", borderRadius: 8,
+    background: "#FFFFFF", outline: "none",
+    color: "#1C1917", fontFamily: "'DM Sans', sans-serif",
   };
-  const labelStyle = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(43,63,191,0.5)", marginBottom: 4, display: "block" };
+  const labelStyle = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9B8B7A", marginBottom: 4, display: "block" };
 
   if (loading) {
     return (
       <div data-testid="contacts-page" style={{ padding: 24 }}>
         {[1, 2, 3].map((i) => (
-          <div key={i} style={{ background: "rgba(255,255,255,0.50)", borderRadius: 14, height: 80, marginBottom: 10, animation: "pulse 1.5s ease-in-out infinite" }} />
+          <div key={i} style={{ background: "#F7F5F0", borderRadius: 10, height: 80, marginBottom: 10, animation: "pulse 1.5s ease-in-out infinite" }} />
         ))}
       </div>
     );
@@ -89,7 +89,7 @@ export default function ContactsPage() {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ position: "relative", flex: 1, maxWidth: 300 }}>
-          <Search size={14} style={{ position: "absolute", left: 10, top: 10, color: "#8892b0" }} />
+          <Search size={14} style={{ position: "absolute", left: 10, top: 10, color: "#9B8B7A" }} />
           <input
             data-testid="contact-search"
             value={search} onChange={(e) => setSearch(e.target.value)}
@@ -101,7 +101,7 @@ export default function ContactsPage() {
           data-testid="add-contact-btn"
           onClick={() => setShowAdd(true)}
           style={{
-            background: "linear-gradient(135deg, #3B4FD0, #2B3FBF)", color: "#fff",
+            background: "#1C1917", color: "#fff",
             border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600,
             cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
           }}
@@ -115,10 +115,10 @@ export default function ContactsPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 60 }}>
           <div style={{ textAlign: "center" }}>
             <Users size={48} style={{ color: "rgba(43,63,191,0.2)", marginBottom: 16 }} />
-            <div style={{ fontSize: 18, fontWeight: 300, color: "#1a1f3c", letterSpacing: "-0.03em", marginBottom: 8 }}>
+            <div style={{ fontSize: 18, fontWeight: 300, color: "#1C1917", letterSpacing: "-0.03em", marginBottom: 8 }}>
               {search ? "No contacts found" : "No contacts yet"}
             </div>
-            <p style={{ fontSize: 12, color: "#8892b0" }}>
+            <p style={{ fontSize: 12, color: "#9B8B7A" }}>
               {search ? "Try a different search term." : "Add contacts to your job applications to track your hiring relationships."}
             </p>
           </div>
@@ -129,23 +129,23 @@ export default function ContactsPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {Object.entries(grouped).map(([appId, group]) => (
           <div key={appId} style={{
-            background: "rgba(255,255,255,0.82)", backdropFilter: "blur(8px)",
-            border: "1px solid rgba(255,255,255,0.95)", borderRadius: 14, overflow: "hidden",
+            background: "#FFFFFF", backdropFilter: "blur(8px)",
+            border: "1px solid #E5E0D8", borderRadius: 10, overflow: "hidden",
           }}>
             {/* Group header */}
             <div style={{
-              padding: "12px 18px", borderBottom: "1px solid rgba(43,63,191,0.07)",
+              padding: "12px 18px", borderBottom: "1px solid #E5E0D8",
               display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "rgba(43,63,191,0.5)" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#9B8B7A" }}>
                   {group.job_company}
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 300, color: "#1a1f3c", letterSpacing: "-0.02em" }}>
+                <div style={{ fontSize: 14, fontWeight: 300, color: "#1C1917", letterSpacing: "-0.02em" }}>
                   {group.job_title}
                 </div>
               </div>
-              <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: "rgba(43,63,191,0.08)", color: "rgba(43,63,191,0.6)" }}>
+              <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: "#F0EDE6", color: "#C0A882" }}>
                 {group.contacts.length} contact{group.contacts.length !== 1 ? "s" : ""}
               </span>
             </div>
@@ -155,15 +155,15 @@ export default function ContactsPage() {
               const nudge = getNudge(contact, group.job_status);
               return (
                 <div key={contact.id} data-testid={`contact-row-${contact.id}`} style={{
-                  padding: "14px 18px", borderBottom: "1px solid rgba(43,63,191,0.04)",
+                  padding: "14px 18px", borderBottom: "1px solid #F7F5F0",
                   display: "flex", alignItems: "center", gap: 12,
                 }}>
                   {/* Avatar */}
                   <div style={{
                     width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                    background: "rgba(43,63,191,0.10)", display: "flex",
+                    background: "#F0EDE6", display: "flex",
                     alignItems: "center", justifyContent: "center",
-                    color: "#2B3FBF", fontSize: 13, fontWeight: 600,
+                    color: "#C0A882", fontSize: 13, fontWeight: 600,
                   }}>
                     {contact.name?.split(" ").map((n) => n[0]).join("") || "?"}
                   </div>
@@ -171,32 +171,32 @@ export default function ContactsPage() {
                   {/* Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: "#1a1f3c" }}>{contact.name}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: "#1C1917" }}>{contact.name}</span>
                       <span style={{
                         fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
                         padding: "1px 6px", borderRadius: 4,
-                        background: "rgba(43,63,191,0.08)", color: "rgba(43,63,191,0.6)",
+                        background: "#F0EDE6", color: "#C0A882",
                       }}>{contact.role_type}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                       {contact.email && (
-                        <a href={`mailto:${contact.email}`} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#8892b0", textDecoration: "none" }}>
+                        <a href={`mailto:${contact.email}`} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#9B8B7A", textDecoration: "none" }}>
                           <Mail size={10} /> {contact.email}
                         </a>
                       )}
                       {contact.linkedin_url && (
-                        <a href={contact.linkedin_url} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#8892b0", textDecoration: "none" }}>
+                        <a href={contact.linkedin_url} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#9B8B7A", textDecoration: "none" }}>
                           <Linkedin size={10} /> LinkedIn
                         </a>
                       )}
                       {contact.last_contacted && (
-                        <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "rgba(26,31,60,0.35)" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "#9B8B7A" }}>
                           <Clock size={10} /> {new Date(contact.last_contacted).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                         </span>
                       )}
                     </div>
                     {contact.notes && (
-                      <div style={{ fontSize: 11, color: "rgba(26,31,60,0.45)", marginTop: 4, fontStyle: "italic" }}>
+                      <div style={{ fontSize: 11, color: "#9B8B7A", marginTop: 4, fontStyle: "italic" }}>
                         "{contact.notes}"
                       </div>
                     )}
@@ -207,8 +207,8 @@ export default function ContactsPage() {
                     {nudge && (
                       <span data-testid={`nudge-${contact.id}`} style={{
                         fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 20, whiteSpace: "nowrap",
-                        background: nudge.type === "action" ? "rgba(239,68,68,0.12)" : "rgba(251,191,36,0.15)",
-                        color: nudge.type === "action" ? "#B91C1C" : "#B45309",
+                        background: nudge.type === "action" ? "#FDF2F1" : "#FDF5EE",
+                        color: nudge.type === "action" ? "#B54A3F" : "#C77B3F",
                         display: "flex", alignItems: "center", gap: 3,
                       }}>
                         <AlertCircle size={10} /> {nudge.text}
@@ -217,7 +217,7 @@ export default function ContactsPage() {
                     <button
                       data-testid={`delete-contact-${contact.id}`}
                       onClick={() => handleDelete(contact.id)}
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#8892b0", padding: 4 }}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#9B8B7A", padding: 4 }}
                     >
                       <X size={14} />
                     </button>
@@ -237,13 +237,13 @@ export default function ContactsPage() {
           style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(26,31,60,0.20)", backdropFilter: "blur(4px)" }}
         >
           <div onClick={(e) => e.stopPropagation()} style={{
-            background: "rgba(255,255,255,0.92)", backdropFilter: "blur(16px)", borderRadius: 16,
-            border: "1px solid rgba(255,255,255,0.95)", boxShadow: "0 8px 40px rgba(43,63,191,0.15)",
+            background: "rgba(255,255,255,0.92)", borderRadius: 10,
+            border: "1px solid #E5E0D8", boxShadow: "0 8px 40px #E5E0D8",
             maxWidth: 440, width: "100%", padding: 24,
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 300, color: "#1a1f3c", letterSpacing: "-0.03em" }}>Add Contact</h2>
-              <button onClick={() => setShowAdd(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#8892b0" }}><X size={18} /></button>
+              <h2 style={{ fontSize: 18, fontWeight: 300, color: "#1C1917", letterSpacing: "-0.03em" }}>Add Contact</h2>
+              <button onClick={() => setShowAdd(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9B8B7A" }}><X size={18} /></button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
@@ -284,7 +284,7 @@ export default function ContactsPage() {
                 onClick={handleAddContact}
                 disabled={saving || !addForm.name || !addForm.job_id}
                 style={{
-                  background: "linear-gradient(135deg, #3B4FD0, #2B3FBF)", color: "#fff",
+                  background: "#1C1917", color: "#fff",
                   border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600,
                   cursor: saving ? "wait" : "pointer", width: "100%",
                   opacity: saving || !addForm.name || !addForm.job_id ? 0.6 : 1,

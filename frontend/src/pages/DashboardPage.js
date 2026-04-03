@@ -19,10 +19,10 @@ export default function DashboardPage() {
   if (jobs.length === 0) {
     return (
       <div data-testid="dashboard-page" style={{ padding: 24, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-        <div style={{ background: "rgba(255,255,255,0.82)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.95)", borderRadius: 14, padding: 40, textAlign: "center", maxWidth: 400 }}>
+        <div style={{ background: "#FFFFFF", border: "1px solid #E5E0D8", borderRadius: 10, padding: 40, textAlign: "center", maxWidth: 400 }}>
           <BarChart3 size={40} style={{ color: "rgba(43,63,191,0.3)", marginBottom: 16 }} />
-          <h2 style={{ fontSize: 18, fontWeight: 300, color: "#1a1f3c", letterSpacing: "-0.03em", marginBottom: 8 }}>Dashboard</h2>
-          <p style={{ fontSize: 12, color: "#8892b0", lineHeight: 1.5 }}>Add applications to see your overview here.</p>
+          <h2 style={{ fontSize: 18, fontWeight: 300, color: "#1C1917", letterSpacing: "-0.03em", marginBottom: 8 }}>Dashboard</h2>
+          <p style={{ fontSize: 12, color: "#9B8B7A", lineHeight: 1.5 }}>Add applications to see your overview here.</p>
         </div>
       </div>
     );
@@ -35,36 +35,36 @@ export default function DashboardPage() {
         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
           <div key={key} style={{
             display: "flex", alignItems: "center", gap: 8,
-            background: "rgba(255,255,255,0.82)", backdropFilter: "blur(8px)",
-            border: "1px solid rgba(255,255,255,0.95)", borderRadius: 10, padding: "10px 16px",
+            background: "#FFFFFF", backdropFilter: "blur(8px)",
+            border: "1px solid #E5E0D8", borderRadius: 10, padding: "10px 16px",
           }}>
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: cfg.color }} />
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#1a1f3c" }}>{statusCounts[key]}</span>
-            <span style={{ fontSize: 11, fontWeight: 400, color: "rgba(26,31,60,0.35)" }}>{cfg.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#1C1917" }}>{statusCounts[key]}</span>
+            <span style={{ fontSize: 11, fontWeight: 400, color: "#9B8B7A" }}>{cfg.label}</span>
           </div>
         ))}
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
-          background: "linear-gradient(135deg, #2B3FBF, #1a2d9f)", borderRadius: 10, padding: "10px 16px",
+          background: "#1C1917", borderRadius: 10, padding: "10px 16px",
         }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: "#fff" }}>{jobs.length}</span>
-          <span style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.60)" }}>Total</span>
+          <span style={{ fontSize: 11, fontWeight: 400, color: "#FFFFFF" }}>Total</span>
         </div>
       </div>
 
       {/* Applications table */}
       <div style={{
-        background: "rgba(255,255,255,0.82)", backdropFilter: "blur(8px)",
-        border: "1px solid rgba(255,255,255,0.95)", borderRadius: 14, overflow: "hidden",
+        background: "#FFFFFF", backdropFilter: "blur(8px)",
+        border: "1px solid #E5E0D8", borderRadius: 10, overflow: "hidden",
       }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ borderBottom: "1px solid rgba(43,63,191,0.07)" }}>
+            <tr style={{ borderBottom: "1px solid #E5E0D8" }}>
               {["Role", "Company", "Status", "Match", "Applied", "Salary"].map((h) => (
                 <th key={h} style={{
                   padding: "12px 16px", textAlign: "left",
                   fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-                  letterSpacing: "0.08em", color: "rgba(43,63,191,0.5)",
+                  letterSpacing: "0.08em", color: "#9B8B7A",
                 }}>{h}</th>
               ))}
             </tr>
@@ -73,9 +73,9 @@ export default function DashboardPage() {
             {jobs.map((job) => {
               const cfg = STATUS_CONFIG[job.status] || STATUS_CONFIG.wishlist;
               return (
-                <tr key={job.id} style={{ borderBottom: "1px solid rgba(43,63,191,0.04)" }}>
-                  <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 300, color: "#1a1f3c", letterSpacing: "-0.02em" }}>{job.title}</td>
-                  <td style={{ padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#1a1f3c" }}>{job.company}</td>
+                <tr key={job.id} style={{ borderBottom: "1px solid #F7F5F0" }}>
+                  <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 300, color: "#1C1917", letterSpacing: "-0.02em" }}>{job.title}</td>
+                  <td style={{ padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#1C1917" }}>{job.company}</td>
                   <td style={{ padding: "10px 16px" }}>
                     <span style={{
                       display: "inline-flex", alignItems: "center", gap: 4,
@@ -86,13 +86,13 @@ export default function DashboardPage() {
                       {cfg.label}
                     </span>
                   </td>
-                  <td style={{ padding: "10px 16px", fontSize: 12, fontWeight: 600, color: job.match_score ? "#1a1f3c" : "rgba(26,31,60,0.25)" }}>
+                  <td style={{ padding: "10px 16px", fontSize: 12, fontWeight: 600, color: job.match_score ? "#1C1917" : "#9B8B7A" }}>
                     {job.match_score ? `${job.match_score}%` : "—"}
                   </td>
-                  <td style={{ padding: "10px 16px", fontSize: 11, color: "rgba(26,31,60,0.35)" }}>
+                  <td style={{ padding: "10px 16px", fontSize: 11, color: "#9B8B7A" }}>
                     {job.date_applied ? new Date(job.date_applied).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
                   </td>
-                  <td style={{ padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#1a1f3c" }}>
+                  <td style={{ padding: "10px 16px", fontSize: 11, fontWeight: 600, color: "#1C1917" }}>
                     {job.salary_min ? `$${(job.salary_min / 1000).toFixed(0)}k – $${(job.salary_max / 1000).toFixed(0)}k` : "—"}
                   </td>
                 </tr>
