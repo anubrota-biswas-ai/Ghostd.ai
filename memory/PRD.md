@@ -1,4 +1,17 @@
-# Jobflow — PRD & Build Log v2.0
+# Ghostd — PRD & Build Log
+
+## Brand
+Renamed from Jobflow to **Ghostd** (March 2026). UI-only rename — backend routes unchanged.
+
+## Design System
+- **Fonts:** Playfair Display (headings, logo, scores) + DM Sans (body, labels, nav, buttons)
+- **Background:** #F7F5F0 (warm beige)
+- **Cards:** #FFFFFF with 1px #E5E0D8 border, 10px radius, no shadows
+- **Accent:** #C0A882 (tan gold) — active states, highlights, CTA borders
+- **Nav:** #1C1917 dark horizontal top bar, 52px height
+- **Text:** #1C1917 primary, #9B8B7A muted
+- **Status pills:** Applied (#F7F5F0), Ghosted (#F0EDEA muted), Interview (#F0EDE6 tan), Offer (#EAF2EC green)
+- **No shadows, no gradients, no glassmorphism — borders only**
 
 ## Architecture
 - **Frontend:** React (CRA) + Tailwind CSS + Zustand + dnd-kit/sortable + lucide-react
